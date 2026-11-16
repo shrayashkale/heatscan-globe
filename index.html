@@ -1947,7 +1947,7 @@ HSG.ask = (() => {
       <div class="sec">
         <h3>Ask the Earth</h3>
         <p class="small muted" style="line-height:1.6;margin-bottom:10px">An analyst that answers <b>only</b> from real data — satellite layers, NASA's event tracker, live weather data via Open-Meteo, and your selected location. It says "I don't know" instead of guessing. Many questions work with <b>no API key</b>; add a free Gemini key for free-form questions.</p>
-        ${HSG.store.get('geminiKey') ? '' : '<button class="btn sm block" id="ask-key" style="margin-bottom:12px">＋ Add free Gemini API key (optional)</button>'}
+        ${HSG.store.get('geminiKey') ? '<button class="btn ghost sm block" id="ask-key" style="margin-bottom:12px">🔑 Change Gemini API key</button>' : '<button class="btn sm block" id="ask-key" style="margin-bottom:12px">＋ Add free Gemini API key (optional)</button>'}
         <div class="qchips">${HSG.SUGGESTIONS.map(q => `<button class="fchip" data-q="${u.esc(q)}">${u.esc(q)}</button>`).join('')}</div>
         <div id="chat-log">${history.map(m => bubble(m)).join('') || `<div class="msg ai">Hi — I'm grounded in live Earth data. Ask about current events, what a data layer shows, which Maharashtra cities are hottest right now, or click the globe first and ask about that place.</div>`}</div>
         <form id="chat-form"><input id="chat-input" placeholder="Ask about the planet…" autocomplete="off" aria-label="Ask a question"><button class="btn sm" type="submit">Ask</button></form>
