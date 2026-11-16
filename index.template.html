@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05080f">
+<meta name="description" content="HeatScan Globe — explore the living Earth: real satellite imagery, environmental data layers, historical time travel, and live event tracking on an interactive 3D planet.">
+<title>HeatScan Globe — Explore the Living Earth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146/Build/Cesium/Widgets/widgets.css">
+<script type="importmap">
+{ "imports": { "cesium": "https://cdn.jsdelivr.net/npm/cesium@1.146/Build/Cesium/index.js" } }
+</script>
+<!--APP_CSS-->
+</head>
+<body>
+<div id="app">
+  <div id="scene" aria-label="Interactive 3D globe"></div>
+
+  <!-- boot overlay -->
+  <div id="boot" role="status">
+    <div class="boot-inner">
+      <div class="boot-logo">HEATSCAN<span>GLOBE</span></div>
+      <div class="boot-bar"><i></i></div>
+      <div class="boot-msg">Warming up the planet…</div>
+    </div>
+  </div>
+
+  <!-- top bar -->
+  <header id="topbar">
+    <button id="brand" class="brand" aria-label="HeatScan Globe home">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="#22d3ee" stroke-width="2.5"/><path d="M3 16h26M16 3c4 4 4 22 0 26M16 3c-4 4-4 22 0 26" stroke="#22d3ee" stroke-width="1.4" fill="none" opacity=".7"/></svg>
+      <span>HEATSCAN <em>GLOBE</em></span>
+    </button>
+    <div id="search-wrap">
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="search" type="search" placeholder="Search places — cities, mountains, landmarks…" autocomplete="off" aria-label="Search places">
+      <div id="search-results" role="listbox" hidden></div>
+    </div>
+    <div id="top-actions">
+      <button id="btn-base" class="pill" title="Base map">🛰 Base</button>
+      <button id="btn-help" class="pill ghost" title="Help & data sources" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <!-- left rail -->
+  <nav id="rail" aria-label="Modes">
+    <button data-mode="explore" class="rail-btn active" title="Explore"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" stroke="currentColor" stroke-width="1.2" fill="none"/></svg><span>Explore</span></button>
+    <button data-mode="layers" class="rail-btn" title="Data layers"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m3 13 9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Layers</span></button>
+    <button data-mode="time" class="rail-btn" title="Time machine"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg><span>Time</span></button>
+    <button data-mode="pulse" class="rail-btn" title="Earth pulse — recent events"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-8 4 16 3-8h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Pulse</span></button>
+    <button data-mode="moments" class="rail-btn" title="Discoveries"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Moments</span></button>
+    <button data-mode="ask" class="rail-btn" title="Ask the Earth"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Ask</span></button>
+    <button data-mode="compare" class="rail-btn" title="Compare places"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg><span>Compare</span></button>
+  </nav>
+
+  <!-- left contextual panel -->
+  <aside id="panel" aria-live="polite">
+    <div class="panel-head">
+      <h2 id="panel-title">Explore</h2>
+      <button id="panel-close" aria-label="Close panel">✕</button>
+    </div>
+    <div id="panel-body"></div>
+  </aside>
+
+  <!-- right inspector -->
+  <aside id="inspector" hidden>
+    <div class="panel-head">
+      <h2 id="inspector-title">Details</h2>
+      <button id="inspector-close" aria-label="Close details">✕</button>
+    </div>
+    <div id="inspector-body"></div>
+  </aside>
+
+  <!-- time machine split slider -->
+  <div id="splitter" hidden>
+    <div class="split-label left"><span id="split-label-a">Then</span></div>
+    <div class="split-handle" role="slider" aria-label="Comparison divider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><i></i></div>
+    <div class="split-label right"><span id="split-label-b">Now</span></div>
+  </div>
+
+  <!-- bottom status bar -->
+  <footer id="statusbar">
+    <span id="coords" title="Cursor coordinates">—</span>
+    <span id="layer-status" title="Active data layer"></span>
+    <span id="perf" title="Render performance"></span>
+  </footer>
+
+  <!-- base map popover -->
+  <div id="base-pop" class="popover" hidden>
+    <button data-base="esri" class="base-opt"><b>Satellite</b><small>Esri World Imagery</small></button>
+    <button data-base="gibs" class="base-opt"><b>True Color</b><small>NASA Terra / VIIRS daily</small></button>
+    <button data-base="dark" class="base-opt"><b>Dark</b><small>Minimal night globe</small></button>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- key dialog -->
+  <dialog id="key-dialog">
+    <form method="dialog">
+      <h3>Ask the Earth — API key</h3>
+      <p>Bring your own <b>free</b> Gemini API key. It stays in your browser only and is sent straight to Google — never through our servers.</p>
+      <ol>
+        <li>Get a key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
+        <li>Paste it below</li>
+      </ol>
+      <input id="key-input" type="password" placeholder="AIza…" autocomplete="off">
+      <div class="dlg-actions">
+        <button value="cancel" class="btn ghost">Cancel</button>
+        <button id="key-save" value="save" class="btn">Save key</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- help dialog -->
+  <dialog id="help-dialog">
+    <form method="dialog">
+      <h3>HeatScan Globe</h3>
+      <p class="muted">Real Earth, real observations. Every layer, event and number comes from a named public dataset — nothing here is simulated.</p>
+      <h4>Data sources</h4>
+      <ul id="help-sources" class="src-list"></ul>
+      <h4>Tips</h4>
+      <ul class="tips">
+        <li>Drag to rotate, scroll to zoom, right-drag to tilt.</li>
+        <li>Click anywhere on Earth for its location fingerprint.</li>
+        <li>Time mode: pick two dates, drag the divider to compare.</li>
+        <li>Ask the Earth answers only from loaded data — it will say when it doesn't know.</li>
+      </ul>
+      <div class="dlg-actions"><button value="ok" class="btn">Got it</button></div>
+    </form>
+  </dialog>
+</div>
+<noscript><p style="padding:2rem;text-align:center">HeatScan Globe needs JavaScript and WebGL.</p></noscript>
+<!--APP_JS-->
+</body>
+</html>
