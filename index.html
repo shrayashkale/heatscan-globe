@@ -443,9 +443,9 @@ HSG.LAYERS = [
     id: 'truecolor', color: '#22d3ee',
     name: 'True Color (Daily)',
     desc: 'What the satellites actually saw — natural-color imagery from Terra MODIS and VIIRS, refreshed daily.',
-    gibs: { layer: 'VIIRS_SNPP_CorrectedReflectance_TrueColor', format: 'image/jpeg', matrix: 'GoogleMapsCompatible_Level9', maxLevel: 9 },
+    gibs: { layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', format: 'image/jpeg', matrix: 'GoogleMapsCompatible_Level9', maxLevel: 9 },
     unit: '', legend: null,
-    satellite: { platform: 'Suomi NPP / Terra', sensor: 'VIIRS / MODIS', resolution: '250 m', revisit: 'Daily', processing: 'Corrected reflectance', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
+    satellite: { platform: 'Terra', sensor: 'MODIS', resolution: '250 m', revisit: 'Daily', processing: 'Corrected reflectance', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
   },
 ];
 
@@ -772,7 +772,7 @@ HSG.globe = (() => {
       // fails, Esri satellite shows through instead of a black hole.
       underLayer = layers.addImageryProvider(esriProvider(), 0);
       if (id === 'gibs') {
-        baseLayer = layers.addImageryProvider(gibsProvider('VIIRS_SNPP_CorrectedReflectance_TrueColor', 'image/jpeg', 'GoogleMapsCompatible_Level9', 9, HSG.store.get('layerDate')), 1);
+        baseLayer = layers.addImageryProvider(gibsProvider('MODIS_Terra_CorrectedReflectance_TrueColor', 'image/jpeg', 'GoogleMapsCompatible_Level9', 9, HSG.store.get('layerDate')), 1);
       } else { // dark
         baseLayer = layers.addImageryProvider(gibsProvider('VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance', 'image/png', 'GoogleMapsCompatible_Level8', 8, HSG.store.get('layerDate')), 1);
       }
@@ -789,13 +789,17 @@ HSG.globe = (() => {
     let eff = snap === 'modis8day' ? HSG.util.snapModis8day(date) : (snap === 'modis16day' ? HSG.util.snapModis16day(date) : (snap === 'modis8dayLst' ? HSG.util.snapModis8dayLst(date) : date));
     // Composite layers fall back by whole periods, daily layers by days.
     const stepDays = snap === 'modis16day' ? 16 : (snap ? 8 : 1);
-    // Night-lights (Black Marble gap-filled) lags ~2 days behind the other
-    // layers: requesting yesterday returns 404 for EVERY tile (verified
-    // 2026-10-26: Oct 25 = all 404, Oct 24 = fine). Clamp its date so the
-    // Dark base and Night Lights layer can never go fully black.
+    // Night-lights (Black Marble gap-filled) lags behind the other layers.
+    // Original clamp was -2 days (verified 2026-10-26). As of 2026-11-16 the
+    // whole SNPP/NOAA20 gap-filled DNB feed on GIBS is stalled: tiles exist
+    // up to 2026-11-01 and 404 for every later date (verified by direct GETs
+    // 2026-11-16). Hard-cap at the last published date so the Dark base and
+    // Night Lights layer can never go fully black. REMOVE the cap once the
+    // GIBS feed resumes publishing past 2026-11-01.
     if (layer === 'VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance') {
       const latest = HSG.util.isoDay(-2);
       if (eff > latest) eff = latest;
+      if (eff > '2026-11-01') eff = '2026-11-01';
     }
     const ext = format === 'image/jpeg' ? 'jpg' : 'png';
     const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${eff}/${matrix}/{z}/{y}/{x}.${ext}`;

@@ -67,9 +67,9 @@ HSG.LAYERS = [
     id: 'truecolor', color: '#22d3ee',
     name: 'True Color (Daily)',
     desc: 'What the satellites actually saw — natural-color imagery from Terra MODIS and VIIRS, refreshed daily.',
-    gibs: { layer: 'VIIRS_SNPP_CorrectedReflectance_TrueColor', format: 'image/jpeg', matrix: 'GoogleMapsCompatible_Level9', maxLevel: 9 },
+    gibs: { layer: 'MODIS_Terra_CorrectedReflectance_TrueColor', format: 'image/jpeg', matrix: 'GoogleMapsCompatible_Level9', maxLevel: 9 },
     unit: '', legend: null,
-    satellite: { platform: 'Suomi NPP / Terra', sensor: 'VIIRS / MODIS', resolution: '250 m', revisit: 'Daily', processing: 'Corrected reflectance', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
+    satellite: { platform: 'Terra', sensor: 'MODIS', resolution: '250 m', revisit: 'Daily', processing: 'Corrected reflectance', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
   },
 ];
 
