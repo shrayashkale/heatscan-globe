@@ -1,0 +1,2379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05080f">
+<meta name="description" content="HeatScan Globe — explore the living Earth: real satellite imagery, environmental data layers, historical time travel, and live event tracking on an interactive 3D planet.">
+<title>HeatScan Globe — Explore the Living Earth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.146/Build/Cesium/Widgets/widgets.css">
+<script type="importmap">
+{ "imports": { "cesium": "https://cdn.jsdelivr.net/npm/cesium@1.146/Build/Cesium/index.js" } }
+</script>
+<style>
+/* HeatScan Globe — design system */
+:root{
+  --bg:#05080f; --bg2:#0a111e;
+  --panel:rgba(10,17,30,.86); --panel-solid:#0a111e;
+  --line:rgba(148,184,226,.14); --line2:rgba(148,184,226,.24);
+  --txt:#e8eef7; --muted:#8fa1b8; --faint:#5b6b82;
+  --cyan:#22d3ee; --blue:#60a5fa; --green:#34d399; --amber:#fbbf24; --red:#f87171; --violet:#a78bfa;
+  --r:14px; --r-sm:10px;
+  --font:'Inter',system-ui,sans-serif; --disp:'Space Grotesk','Inter',sans-serif;
+  --shadow:0 12px 40px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--font);font-size:14px;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select,textarea{font-family:inherit}
+#app{position:fixed;inset:0}
+#scene{position:absolute;inset:0}
+#scene canvas{display:block}
+
+/* boot */
+#boot{position:absolute;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;transition:opacity .6s}
+#boot.done{opacity:0;pointer-events:none}
+.boot-inner{text-align:center}
+.boot-logo{font-family:var(--disp);font-weight:700;font-size:26px;letter-spacing:.14em}
+.boot-logo span{color:var(--cyan);margin-left:.35em}
+.boot-bar{width:220px;height:3px;background:rgba(255,255,255,.08);border-radius:3px;margin:22px auto 14px;overflow:hidden}
+.boot-bar i{display:block;height:100%;width:30%;background:var(--cyan);border-radius:3px;animation:slide 1.1s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+.boot-msg{color:var(--muted);font-size:13px}
+
+/* topbar */
+#topbar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:14px;padding:14px 18px;z-index:20;pointer-events:none}
+#topbar>*{pointer-events:auto}
+.brand{display:flex;align-items:center;gap:9px;font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:.12em}
+.brand em{font-style:normal;color:var(--cyan)}
+#search-wrap{position:relative;flex:1;max-width:520px;margin:0 auto;display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:0 16px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+#search-wrap svg{color:var(--muted);flex:none}
+#search{flex:1;background:none;border:none;outline:none;color:var(--txt);font-size:14px;padding:11px 10px}
+#search::placeholder{color:var(--faint)}
+#search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;background:var(--panel-solid);border:1px solid var(--line2);border-radius:var(--r-sm);overflow:hidden;box-shadow:var(--shadow);max-height:320px;overflow-y:auto}
+.sr-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover,.sr-item.active{background:rgba(34,211,238,.08)}
+.sr-item b{font-weight:600;font-size:13.5px}
+.sr-item small{color:var(--muted);font-size:12px}
+#top-actions{display:flex;gap:8px}
+.pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);transition:border-color .2s}
+.pill:hover{border-color:var(--cyan)}
+.pill.ghost{padding:9px 13px}
+
+/* rail */
+#rail{position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:20;display:flex;flex-direction:column;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:8px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.rail-btn{display:flex;flex-direction:column;align-items:center;gap:4px;width:62px;padding:9px 0;border-radius:12px;color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.02em;transition:all .18s}
+.rail-btn svg{width:22px;height:22px}
+.rail-btn:hover{color:var(--txt);background:rgba(255,255,255,.05)}
+.rail-btn.active{color:var(--cyan);background:rgba(34,211,238,.1)}
+
+/* panels */
+#panel,#inspector{position:absolute;top:76px;bottom:56px;width:340px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:var(--shadow);z-index:15;display:flex;flex-direction:column;overflow:hidden;transition:transform .28s ease,opacity .28s ease}
+#panel{left:92px}
+#inspector{right:14px}
+#panel.hidden-panel{transform:translateX(-24px);opacity:0;pointer-events:none}
+#inspector[hidden]{display:none}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.panel-head h2{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:.04em}
+.panel-head button{color:var(--muted);font-size:15px;padding:4px 8px;border-radius:8px}
+.panel-head button:hover{color:var(--txt);background:rgba(255,255,255,.06)}
+#panel-body,#inspector-body{flex:1;overflow-y:auto;padding:14px 16px;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
+#panel-body::-webkit-scrollbar,#inspector-body::-webkit-scrollbar{width:6px}
+#panel-body::-webkit-scrollbar-thumb,#inspector-body::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+
+.sec{margin-bottom:18px}
+.sec>h3{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+.muted{color:var(--muted)} .small{font-size:12px} .tiny{font-size:11px}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1}
+
+/* layer list */
+.layer-card{border:1px solid var(--line);border-radius:var(--r-sm);padding:12px;margin-bottom:10px;cursor:pointer;transition:border-color .18s,background .18s}
+.layer-card:hover{border-color:var(--line2)}
+.layer-card.active{border-color:var(--cyan);background:rgba(34,211,238,.06)}
+.layer-card .row{justify-content:space-between}
+.layer-card b{font-size:13.5px;font-weight:600}
+.layer-card .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.layer-card p{color:var(--muted);font-size:12px;margin-top:6px;line-height:1.5}
+.layer-card .meta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.chip{font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);letter-spacing:.03em}
+.chip.c-cyan{color:var(--cyan);border-color:rgba(34,211,238,.35)}
+.chip.c-green{color:var(--green);border-color:rgba(52,211,153,.35)}
+.chip.c-amber{color:var(--amber);border-color:rgba(251,191,36,.35)}
+.chip.c-red{color:var(--red);border-color:rgba(248,113,113,.35)}
+.chip.c-blue{color:var(--blue);border-color:rgba(96,165,250,.35)}
+input[type=range].slider{width:100%;accent-color:var(--cyan);margin:8px 0 2px}
+.legend{margin-top:10px}
+.legend-bar{height:10px;border-radius:6px;margin-bottom:6px}
+.legend-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted)}
+.sat-info{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;line-height:1.7;color:var(--muted)}
+.sat-info b{color:var(--txt)}
+.sat-info a{color:var(--cyan)}
+
+/* buttons */
+.btn{background:var(--cyan);color:#04222a;font-weight:700;font-size:13px;padding:10px 18px;border-radius:10px;transition:filter .15s}
+.btn:hover{filter:brightness(1.1)}
+.btn.ghost{background:rgba(255,255,255,.06);color:var(--txt);border:1px solid var(--line2)}
+.btn.sm{padding:7px 13px;font-size:12px;border-radius:8px}
+.btn.block{width:100%;margin-top:10px}
+.btn:disabled{opacity:.45;cursor:default}
+
+/* events */
+.evt{border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 12px;margin-bottom:9px;cursor:pointer;transition:border-color .15s}
+.evt:hover{border-color:var(--line2)}
+.evt.sel{border-color:var(--amber)}
+.evt .row{justify-content:space-between;margin-bottom:5px}
+.evt b{font-size:13px;font-weight:600;line-height:1.35}
+.evt .when{color:var(--faint);font-size:11.5px;margin-top:5px}
+.evt-filters{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.fchip{font-size:11.5px;font-weight:600;padding:6px 11px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.fchip.on{color:var(--txt);border-color:var(--cyan);background:rgba(34,211,238,.1)}
+
+/* moments cards */
+.moment{border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px;cursor:pointer;background:linear-gradient(160deg,rgba(255,255,255,.035),transparent);transition:transform .18s,border-color .18s}
+.moment:hover{transform:translateY(-2px);border-color:var(--line2)}
+.moment .kicker{font-size:10.5px;font-weight:700;letter-spacing:.14em;color:var(--amber);text-transform:uppercase;margin-bottom:7px}
+.moment h4{font-family:var(--disp);font-size:15px;font-weight:600;line-height:1.4;margin-bottom:7px}
+.moment p{font-size:12.5px;color:var(--muted);line-height:1.6}
+.moment .why{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);font-size:12px;color:var(--muted)}
+.moment .why b{color:var(--cyan);font-weight:600}
+
+/* chat */
+#chat-log{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.msg{max-width:94%;padding:10px 13px;border-radius:12px;font-size:13px;line-height:1.6}
+.msg.user{align-self:flex-end;background:rgba(34,211,238,.14);border:1px solid rgba(34,211,238,.3)}
+.msg.ai{align-self:flex-start;background:rgba(255,255,255,.045);border:1px solid var(--line)}
+.msg.ai .src{margin-top:8px;font-size:11px;color:var(--faint)}
+.msg.ai .src a{color:var(--cyan)}
+.qchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+#chat-form{display:flex;gap:8px}
+#chat-input{flex:1;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:10px;color:var(--txt);padding:10px 12px;font-size:13px;outline:none}
+#chat-input:focus{border-color:var(--cyan)}
+.typing{display:inline-flex;gap:4px;padding:6px 2px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:tp 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes tp{0%,100%{opacity:.3}50%{opacity:1}}
+
+/* fingerprint */
+.fp-hero{margin-bottom:14px}
+.fp-hero h3{font-family:var(--disp);font-size:19px;font-weight:700;line-height:1.3}
+.fp-hero .coords{color:var(--faint);font-size:12px;margin-top:4px;font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.kv .cell{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 12px}
+.kv .cell .k{font-size:10.5px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+.kv .cell .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.kv .cell .v small{font-size:11px;color:var(--muted);font-weight:400}
+.spark{width:100%;height:64px;display:block;margin-top:6px}
+
+/* compare */
+.cmp-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.cmp-table th,.cmp-table td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+.cmp-table th{color:var(--faint);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+.cmp-table td{font-variant-numeric:tabular-nums}
+.pin-row{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.pin-dot{width:10px;height:10px;border-radius:50%;flex:none}
+
+/* splitter */
+#splitter{position:absolute;top:0;bottom:0;left:0;right:0;pointer-events:none;z-index:12}
+.split-handle{position:absolute;top:0;bottom:0;width:34px;margin-left:-17px;pointer-events:auto;cursor:ew-resize;display:flex;justify-content:center}
+.split-handle i{width:3px;background:rgba(255,255,255,.85);box-shadow:0 0 12px rgba(34,211,238,.8)}
+.split-handle::after{content:"◂ ▸";position:absolute;top:30%;transform:translateY(-50%);background:var(--panel-solid);border:1px solid var(--line2);color:var(--txt);font-size:11px;padding:7px 9px;border-radius:999px;white-space:nowrap}
+.split-label{position:absolute;top:76px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:var(--panel);border:1px solid var(--line2);padding:5px 12px;border-radius:999px}
+.split-label.left{left:110px}.split-label.right{right:16px}
+
+/* statusbar */
+#statusbar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:18px;align-items:center;padding:9px 18px;font-size:11.5px;color:var(--faint);z-index:14;pointer-events:none;font-variant-numeric:tabular-nums}
+#statusbar .grow{flex:1}
+#layer-status{color:var(--muted)}
+
+/* popover */
+.popover{position:absolute;top:62px;right:14px;z-index:30;background:var(--panel-solid);border:1px solid var(--line2);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:6px;min-width:210px}
+.base-opt{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:8px}
+.base-opt:hover{background:rgba(255,255,255,.05)}
+.base-opt b{display:block;font-size:13px}
+.base-opt small{color:var(--muted);font-size:11.5px}
+
+/* toasts */
+#toasts{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{background:var(--panel-solid);border:1px solid var(--line2);padding:10px 18px;border-radius:999px;font-size:13px;box-shadow:var(--shadow);animation:tin .25s ease}
+.toast.err{border-color:var(--red);color:#ffd7d7}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}}
+
+/* dialogs */
+dialog{background:var(--panel-solid);color:var(--txt);border:1px solid var(--line2);border-radius:var(--r);padding:22px;max-width:440px;width:calc(100vw - 40px);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+dialog h3{font-family:var(--disp);font-size:17px;margin-bottom:10px}
+dialog h4{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:14px 0 8px}
+dialog p{font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:8px}
+dialog ol{margin:6px 0 12px 20px;font-size:13px;color:var(--muted);line-height:1.7}
+dialog a{color:var(--cyan)}
+#key-input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:10px;color:var(--txt);padding:11px 13px;font-size:13px;outline:none;margin-top:4px}
+.dlg-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.src-list{list-style:none;font-size:12.5px;line-height:1.5}
+.src-list li{margin-bottom:8px;color:var(--muted)}
+.src-list b{color:var(--txt)}
+.src-list a{color:var(--cyan);font-size:11.5px}
+.tips{margin-left:18px;font-size:12.5px;color:var(--muted);line-height:1.8}
+
+/* time mode */
+.date-row{display:flex;gap:8px;margin-bottom:10px}
+.date-field{flex:1}
+.date-field label{display:block;font-size:10.5px;color:var(--faint);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;font-weight:600}
+.date-field input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--line2);border-radius:8px;color:var(--txt);padding:9px 10px;font-size:13px;color-scheme:dark}
+.caveat{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.3);border-radius:var(--r-sm);padding:10px 12px;font-size:12px;line-height:1.6;color:#f5d98b;margin-top:12px}
+
+/* empty states */
+.empty{text-align:center;color:var(--faint);padding:26px 10px;font-size:13px;line-height:1.7}
+.empty .big{font-size:26px;display:block;margin-bottom:8px}
+.spinner{width:34px;height:34px;border:3px solid var(--line2);border-top-color:var(--cyan);border-radius:50%;margin:24px auto;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.cesium-credit,.cesium-widget-credits{display:none!important}
+
+/* responsive */
+@media (max-width:860px){
+  #rail{left:0;right:0;top:auto;bottom:0;transform:none;flex-direction:row;justify-content:space-around;border-radius:18px 18px 0 0;padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+  .rail-btn{width:56px;padding:7px 0;font-size:9.5px}
+  #panel,#inspector{left:10px;right:10px;top:auto;bottom:86px;width:auto;max-height:52vh}
+  #panel.hidden-panel{transform:translateY(24px)}
+  #topbar{padding:10px 12px;gap:8px}
+  .brand span{display:none}
+  #statusbar{display:none}
+  .split-label.left{left:12px}
+  #toasts{bottom:150px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="scene" aria-label="Interactive 3D globe"></div>
+
+  <!-- boot overlay -->
+  <div id="boot" role="status">
+    <div class="boot-inner">
+      <div class="boot-logo">HEATSCAN<span>GLOBE</span></div>
+      <div class="boot-bar"><i></i></div>
+      <div class="boot-msg">Warming up the planet…</div>
+    </div>
+  </div>
+
+  <!-- top bar -->
+  <header id="topbar">
+    <button id="brand" class="brand" aria-label="HeatScan Globe home">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><circle cx="16" cy="16" r="13" fill="none" stroke="#22d3ee" stroke-width="2.5"/><path d="M3 16h26M16 3c4 4 4 22 0 26M16 3c-4 4-4 22 0 26" stroke="#22d3ee" stroke-width="1.4" fill="none" opacity=".7"/></svg>
+      <span>HEATSCAN <em>GLOBE</em></span>
+    </button>
+    <div id="search-wrap">
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <input id="search" type="search" placeholder="Search places — cities, mountains, landmarks…" autocomplete="off" aria-label="Search places">
+      <div id="search-results" role="listbox" hidden></div>
+    </div>
+    <div id="top-actions">
+      <button id="btn-base" class="pill" title="Base map">🛰 Base</button>
+      <button id="btn-help" class="pill ghost" title="Help & data sources" aria-label="Help">?</button>
+    </div>
+  </header>
+
+  <!-- left rail -->
+  <nav id="rail" aria-label="Modes">
+    <button data-mode="explore" class="rail-btn active" title="Explore"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" stroke="currentColor" stroke-width="1.2" fill="none"/></svg><span>Explore</span></button>
+    <button data-mode="layers" class="rail-btn" title="Data layers"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m3 13 9 5 9-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Layers</span></button>
+    <button data-mode="time" class="rail-btn" title="Time machine"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg><span>Time</span></button>
+    <button data-mode="pulse" class="rail-btn" title="Earth pulse — recent events"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-8 4 16 3-8h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Pulse</span></button>
+    <button data-mode="moments" class="rail-btn" title="Discoveries"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span>Moments</span></button>
+    <button data-mode="ask" class="rail-btn" title="Ask the Earth"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Ask</span></button>
+    <button data-mode="compare" class="rail-btn" title="Compare places"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg><span>Compare</span></button>
+  </nav>
+
+  <!-- left contextual panel -->
+  <aside id="panel" aria-live="polite">
+    <div class="panel-head">
+      <h2 id="panel-title">Explore</h2>
+      <button id="panel-close" aria-label="Close panel">✕</button>
+    </div>
+    <div id="panel-body"></div>
+  </aside>
+
+  <!-- right inspector -->
+  <aside id="inspector" hidden>
+    <div class="panel-head">
+      <h2 id="inspector-title">Details</h2>
+      <button id="inspector-close" aria-label="Close details">✕</button>
+    </div>
+    <div id="inspector-body"></div>
+  </aside>
+
+  <!-- time machine split slider -->
+  <div id="splitter" hidden>
+    <div class="split-label left"><span id="split-label-a">Then</span></div>
+    <div class="split-handle" role="slider" aria-label="Comparison divider" tabindex="0" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"><i></i></div>
+    <div class="split-label right"><span id="split-label-b">Now</span></div>
+  </div>
+
+  <!-- bottom status bar -->
+  <footer id="statusbar">
+    <span id="coords" title="Cursor coordinates">—</span>
+    <span id="layer-status" title="Active data layer"></span>
+    <span id="perf" title="Render performance"></span>
+  </footer>
+
+  <!-- base map popover -->
+  <div id="base-pop" class="popover" hidden>
+    <button data-base="esri" class="base-opt"><b>Satellite</b><small>Esri World Imagery</small></button>
+    <button data-base="gibs" class="base-opt"><b>True Color</b><small>NASA Terra / VIIRS daily</small></button>
+    <button data-base="dark" class="base-opt"><b>Dark</b><small>Minimal night globe</small></button>
+  </div>
+
+  <div id="toasts" aria-live="polite"></div>
+
+  <!-- key dialog -->
+  <dialog id="key-dialog">
+    <form method="dialog">
+      <h3>Ask the Earth — API key</h3>
+      <p>Bring your own <b>free</b> Gemini API key. It stays in your browser only and is sent straight to Google — never through our servers.</p>
+      <ol>
+        <li>Get a key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
+        <li>Paste it below</li>
+      </ol>
+      <input id="key-input" type="password" placeholder="AIza…" autocomplete="off">
+      <div class="dlg-actions">
+        <button value="cancel" class="btn ghost">Cancel</button>
+        <button id="key-save" value="save" class="btn">Save key</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- help dialog -->
+  <dialog id="help-dialog">
+    <form method="dialog">
+      <h3>HeatScan Globe</h3>
+      <p class="muted">Real Earth, real observations. Every layer, event and number comes from a named public dataset — nothing here is simulated.</p>
+      <h4>Data sources</h4>
+      <ul id="help-sources" class="src-list"></ul>
+      <h4>Tips</h4>
+      <ul class="tips">
+        <li>Drag to rotate, scroll to zoom, right-drag to tilt.</li>
+        <li>Click anywhere on Earth for its location fingerprint.</li>
+        <li>Time mode: pick two dates, drag the divider to compare.</li>
+        <li>Ask the Earth answers only from loaded data — it will say when it doesn't know.</li>
+      </ul>
+      <div class="dlg-actions"><button value="ok" class="btn">Got it</button></div>
+    </form>
+  </dialog>
+</div>
+<noscript><p style="padding:2rem;text-align:center">HeatScan Globe needs JavaScript and WebGL.</p></noscript>
+<script type="module">
+
+/* ===== config.js ===== */
+/* HeatScan Globe — configuration & dataset catalog.
+   Every number shown in the app traces back to one of these sources. */
+window.HSG = window.HSG || {};
+HSG.CONFIG = {
+  CESIUM_VERSION: '1.146',
+  GEMINI_MODEL: 'gemini-3.8-flash',
+  KEY_STORE: 'hsg_gemini_key',
+  // "latest available" offset for daily GIBS layers (processing latency)
+  LATEST_OFFSET_DAYS: 3,
+  MAX_COMPARE_PINS: 4,
+  EONET_URL: 'https://eonet.gsfc.nasa.gov/api/v3/events',
+  NOMINATIM_URL: 'https://nominatim.openstreetmap.org/search',
+  REVERSE_URL: 'https://api-bdc.io/data/reverse-geocode-client',
+  ELEV_URL: 'https://api.opentopodata.org/v1/srtm90m',
+  METEO_URL: 'https://api.open-meteo.com/v1/forecast',
+  METEO_ARCHIVE_URL: 'https://archive-api.open-meteo.com/v1/archive',
+  ESRI_IMAGERY: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  ESRI_LABELS: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+};
+
+/* Base maps */
+HSG.BASEMAPS = {
+  esri: { name: 'Satellite', sub: 'Esri World Imagery' },
+  gibs: { name: 'True Color', sub: 'NASA Terra / VIIRS daily' },
+  dark: { name: 'Dark', sub: 'Minimal night globe' },
+};
+
+/* Data layers — id, GIBS layer name, format, matrix set, legend, satellite facts */
+HSG.LAYERS = [
+  {
+    id: 'lst', color: '#f87171',
+    name: 'Land Surface Temperature',
+    desc: 'Skin temperature of the land surface from MODIS thermal infrared — the "feels-like-from-space" view of heat.',
+    gibs: { layer: 'MODIS_Terra_L3_Land_Surface_Temp_8Day_Day', format: 'image/png', matrix: 'GoogleMapsCompatible_Level7', maxLevel: 7, snap: 'modis8dayLst' },
+    unit: '°C', legend: { min: -25, max: 55, stops: ['#313695','#4575b4','#74add1','#abd9e9','#e0f3f8','#ffffbf','#fee090','#fdae61','#f46d43','#d73027','#a50026'] },
+    satellite: { platform: 'Terra (EOS AM-1)', sensor: 'MODIS', resolution: '1 km', revisit: '8-day composite', processing: 'Level 3, 8-day composite of clear-sky observations', source: 'NASA GIBS / LP DAAC', link: 'https://earthdata.nasa.gov' },
+    note: 'Eight days of clear-sky passes composited into one map, so coverage is nearly complete — a single day only ever shows the cloud-free patches. It shows the most recent completed 8-day period; this dataset publishes more slowly than the daily ones.',
+  },
+  {
+    id: 'ndvi', color: '#34d399',
+    name: 'Vegetation Index (NDVI)',
+    desc: 'How green and photosynthetically active the land is — from bare soil and rock to dense forest canopy.',
+    gibs: { layer: 'MODIS_Terra_L3_NDVI_16Day', format: 'image/png', matrix: 'GoogleMapsCompatible_Level9', maxLevel: 9, snap: 'modis16day' },
+    alwaysClip: true,
+    unit: 'NDVI', legend: { min: -0.2, max: 1, stops: ['#8c510a','#d8b365','#f6e8c3','#c7eae5','#5ab4ac','#01665e','#003c30'] },
+    satellite: { platform: 'Terra (EOS AM-1)', sensor: 'MODIS', resolution: '500 m', revisit: '16-day composite', processing: 'Level 3 vegetation index, 16-day composite', source: 'NASA GIBS / LP DAAC', link: 'https://earthdata.nasa.gov' },
+    note: 'Rendered for the region in view, from the most recent completed 16-day composite — sixteen days of satellite passes merged, so coverage is far more complete than any single day. In this palette, barren plateaus, snow and lakes read pale blue-green: that is the dataset\u2019s true colour for near-zero vegetation, not an error.',
+  },
+  {
+    id: 'aerosol', color: '#a78bfa',
+    name: 'Aerosol & Smoke',
+    desc: 'Tiny particles hanging in the air — wildfire smoke, dust storms and urban haze — as seen by MODIS.',
+    gibs: { layer: 'MODIS_Combined_MAIAC_L2G_AerosolOpticalDepth', format: 'image/png', matrix: 'GoogleMapsCompatible_Level7', maxLevel: 7 },
+    unit: 'AOD', legend: { min: 0, max: 1, stops: ['transparent', '#fde68a', '#f59e0b', '#b45309', '#451a03'] },
+    satellite: { platform: 'Terra + Aqua', sensor: 'MODIS (MAIAC)', resolution: '1 km', revisit: 'Daily', processing: 'MAIAC daily gridded aerosol retrieval', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
+    note: 'A daily composite gridded from both MODIS satellites (MAIAC) — no orbit strips. Aerosol can only be measured where surface and sky allow it, so gaps over bright desert, cloud and parts of the ocean are real: the base map shows through there.',
+  },
+  {
+    id: 'night', color: '#60a5fa',
+    name: 'Night Lights',
+    desc: 'City lights and human activity after dark — gap-filled, moonlight-corrected Black Marble from Suomi NPP.',
+    gibs: { layer: 'VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance', format: 'image/png', matrix: 'GoogleMapsCompatible_Level8', maxLevel: 8 },
+    unit: 'radiance', legend: { min: 0, max: 1, stops: ['#000000', '#0b1e3a', '#1d4ed8', '#93c5fd', '#ffffff'] },
+    satellite: { platform: 'Suomi NPP', sensor: 'VIIRS Day/Night Band', resolution: '500 m', revisit: 'Daily', processing: 'Black Marble, gap-filled & BRDF-corrected', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
+  },
+  {
+    id: 'truecolor', color: '#22d3ee',
+    name: 'True Color (Daily)',
+    desc: 'What the satellites actually saw — natural-color imagery from Terra MODIS and VIIRS, refreshed daily.',
+    gibs: { layer: 'VIIRS_SNPP_CorrectedReflectance_TrueColor', format: 'image/jpeg', matrix: 'GoogleMapsCompatible_Level9', maxLevel: 9 },
+    unit: '', legend: null,
+    satellite: { platform: 'Suomi NPP / Terra', sensor: 'VIIRS / MODIS', resolution: '250 m', revisit: 'Daily', processing: 'Corrected reflectance', source: 'NASA GIBS', link: 'https://earthdata.nasa.gov' },
+  },
+];
+
+/* EONET category styling */
+HSG.CATEGORIES = {
+  wildfires:      { label: 'Wildfires',      color: '#f87171' },
+  volcanoes:      { label: 'Volcanoes',      color: '#fb923c' },
+  floods:         { label: 'Floods',         color: '#60a5fa' },
+  severeStorms:   { label: 'Storms',         color: '#a78bfa' },
+  drought:        { label: 'Drought',        color: '#fbbf24' },
+  earthquakes:    { label: 'Earthquakes',    color: '#f472b6' },
+  landslides:     { label: 'Landslides',     color: '#d6a35c' },
+  seaLakeIce:     { label: 'Sea & Lake Ice', color: '#a5f3fc' },
+  snow:           { label: 'Snow',            color: '#e0f2fe' },
+  tempExtremes:   { label: 'Heat / Cold',    color: '#fca5a5' },
+  dustHaze:       { label: 'Dust & Haze',    color: '#d4b483' },
+  manmade:        { label: 'Man-made',       color: '#94a3b8' },
+  waterColor:     { label: 'Water Color',    color: '#2dd4bf' },
+};
+
+/* Maharashtra cities used by Ask the Earth's built-in (no-key) temperature ranking.
+   Coordinates are city centres; temperatures are fetched live from Open-Meteo. */
+HSG.MH_CITIES = [
+  { name: 'Chandrapur', lat: 19.9615, lon: 79.2961 },
+  { name: 'Solapur', lat: 17.6599, lon: 74.9064 },
+  { name: 'Jalgaon', lat: 21.0077, lon: 75.5626 },
+  { name: 'Nagpur', lat: 21.1458, lon: 79.0882 },
+  { name: 'Akola', lat: 20.7002, lon: 77.0082 },
+  { name: 'Amravati', lat: 20.9374, lon: 77.7796 },
+  { name: 'Dhule', lat: 20.9042, lon: 74.7749 },
+  { name: 'Nashik', lat: 19.9975, lon: 73.7898 },
+  { name: 'Chhatrapati Sambhajinagar', lat: 19.8762, lon: 75.3433 },
+  { name: 'Nanded', lat: 19.1383, lon: 77.3210 },
+  { name: 'Latur', lat: 18.4088, lon: 76.5604 },
+  { name: 'Ahilyanagar', lat: 19.0948, lon: 74.7480 },
+  { name: 'Pune', lat: 18.5204, lon: 73.8567 },
+  { name: 'Kolhapur', lat: 16.7050, lon: 74.2433 },
+  { name: 'Thane', lat: 19.2183, lon: 72.9781 },
+  { name: 'Mumbai', lat: 19.0760, lon: 72.8777 },
+];
+
+/* Suggested questions for Ask the Earth */
+HSG.SUGGESTIONS = [
+  'What wildfires are burning right now?',
+  'Show me the most significant events this week',
+  'Where is it unusually hot on land today?',
+  'Explain what the vegetation index tells us',
+  'What do the night lights reveal about this region?',
+];
+
+
+/* ===== util.js ===== */
+/* Small utilities */
+HSG.util = {
+  el(id) { return document.getElementById(id); },
+  esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
+  fmtNum(n, d = 1) { if (n == null || isNaN(n)) return '—'; return Number(n).toFixed(d); },
+  fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  },
+  fmtDateTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  },
+  isoDay(offsetDays = 0) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + offsetDays);
+    return d.toISOString().slice(0, 10);
+  },
+  daysAgo(iso) {
+    if (!iso) return null;
+    return Math.round((Date.now() - new Date(iso).getTime()) / 864e5);
+  },
+  relTime(iso) {
+    const days = this.daysAgo(iso);
+    if (days == null) return '';
+    if (days <= 0) return 'today';
+    if (days === 1) return 'yesterday';
+    if (days < 30) return days + ' days ago';
+    const m = Math.round(days / 30);
+    return m === 1 ? 'a month ago' : m + ' months ago';
+  },
+  debounce(fn, ms) {
+    let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  },
+  haversineKm(a, b, c, d) {
+    const R = 6371, r = Math.PI / 180;
+    const s1 = Math.sin((c - a) / 2 * r) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) / 2 * r) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(s1));
+  },
+  async getJSON(url, opts = {}) {
+    const ctl = new AbortController();
+    const to = setTimeout(() => ctl.abort(), opts.timeout || 15000);
+    try {
+      const res = await fetch(url, { signal: ctl.signal, headers: { 'Accept': 'application/json' } });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally { clearTimeout(to); }
+  },
+  toast(msg, kind = '') {
+    const t = document.createElement('div');
+    t.className = 'toast ' + kind;
+    t.textContent = msg;
+    HSG.util.el('toasts').appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3200);
+  },
+  /* annual mean temps from Open-Meteo archive daily arrays (robust to variable names) */
+  annualTrend(daily) {
+    if (!daily || !daily.time) return null;
+    const n = daily.time.length;
+    const mean = daily.temperature_2m_mean;
+    const mx = daily.temperature_2m_max, mn = daily.temperature_2m_min;
+    const byYear = {};
+    for (let i = 0; i < n; i++) {
+      let v = mean ? mean[i] : null;
+      if (v == null && mx && mn && mx[i] != null && mn[i] != null) v = (mx[i] + mn[i]) / 2;
+      if (v == null) continue;
+      const y = daily.time[i].slice(0, 4);
+      (byYear[y] = byYear[y] || []).push(v);
+    }
+    const years = Object.keys(byYear).sort();
+    if (years.length < 2) return null;
+    return { years, values: years.map(y => byYear[y].reduce((s, v) => s + v, 0) / byYear[y].length) };
+  },
+  /* Snap a date to the MODIS 8-day composite grid (periods start Jan 1 each year).
+     Only a COMPLETED period is ever requested: an in-progress period is not yet
+     published by GIBS and would return missing tiles, so step back one period
+     when this period hasn't ended at least 2 days ago (processing lag). */
+  snapModis8day(iso) {
+    const d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d)) return iso;
+    const start = Date.UTC(d.getUTCFullYear(), 0, 1);
+    const doy = Math.floor((d.getTime() - start) / 864e5) + 1;
+    let pStart = Math.floor((doy - 1) / 8) * 8 + 1;
+    let s = new Date(start + (pStart - 1) * 864e5);
+    const periodEnd = s.getTime() + 7 * 864e5;
+    const lastUsable = Date.now() - 2 * 864e5;
+    if (periodEnd > lastUsable) {
+      s = new Date(s.getTime() - 8 * 864e5);
+    }
+    return s.toISOString().slice(0, 10);
+  },
+  /* 8-day snap for the L3 Land Surface Temperature composite, whose
+     publication lag is much longer than the daily products: GIBS inventory
+     checked 2026-10-27 ended at the period starting Oct 8 (~19 days back).
+     Require the period to have ended at least 12 days ago; the tile-level
+     period-step fallbacks absorb any remaining lag. */
+  snapModis8dayLst(iso) {
+    const d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d)) return iso;
+    const start = Date.UTC(d.getUTCFullYear(), 0, 1);
+    const doy = Math.floor((d.getTime() - start) / 864e5) + 1;
+    let pStart = Math.floor((doy - 1) / 8) * 8 + 1;
+    let s = new Date(start + (pStart - 1) * 864e5);
+    const lastUsable = Date.now() - 12 * 864e5;
+    // Loop (not a single step): the publication lag can exceed one period.
+    for (let i = 0; i < 8 && s.getTime() + 7 * 864e5 > lastUsable; i++) {
+      s = new Date(s.getTime() - 8 * 864e5);
+    }
+    return s.toISOString().slice(0, 10);
+  },
+  /* Same completed-period rule for the MODIS 16-day composite grid. */
+  snapModis16day(iso) {
+    const d = new Date(iso + 'T00:00:00Z');
+    if (isNaN(d)) return iso;
+    const start = Date.UTC(d.getUTCFullYear(), 0, 1);
+    const doy = Math.floor((d.getTime() - start) / 864e5) + 1;
+    let pStart = Math.floor((doy - 1) / 16) * 16 + 1;
+    let s = new Date(start + (pStart - 1) * 864e5);
+    const periodEnd = s.getTime() + 15 * 864e5;
+    const lastUsable = Date.now() - 2 * 864e5;
+    if (periodEnd > lastUsable) {
+      s = new Date(s.getTime() - 16 * 864e5);
+    }
+    return s.toISOString().slice(0, 10);
+  },
+  spark(values, w = 300, h = 64, color = '#22d3ee') {
+    const v = values.filter(x => x != null);
+    if (v.length < 2) return '<span class="muted tiny">insufficient data</span>';
+    const min = Math.min(...v), max = Math.max(...v), rng = (max - min) || 1;
+    const pts = v.map((x, i) => `${(i / (v.length - 1) * w).toFixed(1)},${(h - 4 - (x - min) / rng * (h - 10)).toFixed(1)}`).join(' ');
+    return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>
+      <circle cx="${w}" cy="${(h - 4 - (v[v.length - 1] - min) / rng * (h - 10)).toFixed(1)}" r="3" fill="${color}"/></svg>
+    <div class="row tiny muted" style="justify-content:space-between"><span>${this.fmtNum(min)}°</span><span>${this.fmtNum(max)}°</span></div>`;
+  },
+};
+
+
+/* ===== state.js ===== */
+/* Central state store — tiny pub/sub */
+HSG.store = (() => {
+  const s = {
+    mode: 'explore',
+    base: 'esri',
+    layer: null,          // active data layer id
+    layerOpacity: 0.85,
+    layerDate: HSG.util.isoDay(-HSG.CONFIG.LATEST_OFFSET_DAYS),
+    timeA: HSG.util.isoDay(-365),   // time machine: "then"
+    timeB: HSG.util.isoDay(-HSG.CONFIG.LATEST_OFFSET_DAYS), // "now"
+    split: 0.5,
+    events: [],           // EONET events
+    eventsLoaded: false,
+    eventFilter: new Set(Object.keys(HSG.CATEGORIES)),
+    selectedEvent: null,
+    location: null,       // fingerprint {lat, lon, name, ...}
+    pins: [],             // compare pins
+    geminiKey: localStorage.getItem(HSG.CONFIG.KEY_STORE) || '',
+    ready: false,
+  };
+  const subs = {};
+  return {
+    get(k) { return s[k]; },
+    set(k, v) {
+      s[k] = v;
+      (subs[k] || []).forEach(fn => { try { fn(v); } catch (e) { console.error(e); } });
+    },
+    on(k, fn) { (subs[k] = subs[k] || []).push(fn); },
+    snapshot() { return { ...s }; },
+  };
+})();
+
+
+/* ===== globe.js ===== */
+/* Cesium globe — boot, camera, base maps, picking */
+HSG.globe = (() => {
+  let viewer = null, Cesium = null;
+  let baseLayer = null, underLayer = null, labelsLayer = null, dataLayer = null, compareLayers = [];
+  let pinEntities = [];
+  let effDate = HSG.util.isoDay(-HSG.CONFIG.LATEST_OFFSET_DAYS); // actual observation date of active layer
+  let tileErrs = 0;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = matchMedia('(max-width: 860px)').matches;
+
+  async function init() {
+    Cesium = await import('cesium');
+    const container = HSG.util.el('scene');
+    viewer = new Cesium.Viewer(container, {
+      // baseLayer:false is LOAD-BEARING: Cesium >=1.104 silently adds its own
+      // default ArcGIS base layer when this is omitted, and that phantom layer
+      // sits ABOVE our base slot and hides base switches (Dark never showed).
+      baseLayer: false,
+      baseLayerPicker: false, geocoder: false, homeButton: false,
+      sceneModePicker: false, navigationHelpButton: false,
+      animation: false, timeline: false, fullscreenButton: false,
+      vrButton: false, infoBox: false, selectionIndicator: false,
+      requestRenderMode: true, maximumRenderTimeChange: Infinity,
+      contextOptions: { webgl: { antialias: true, powerPreference: 'high-performance' } },
+    });
+    // Lighting OFF: a day/night terminator shading half the disc reads as
+    // "black globe" breakage and hides the imagery this app exists to show.
+    // Satellite mosaics are daytime composites — display them uniformly lit.
+    viewer.scene.globe.enableLighting = false;
+    viewer.scene.skyAtmosphere.show = true;
+    viewer.scene.fog.enabled = true;
+    viewer.scene.globe.baseColor = new Cesium.Color(0.02, 0.04, 0.08, 1);
+    if (isMobile) viewer.resolutionScale = Math.min(devicePixelRatio, 1.5);
+    else viewer.resolutionScale = Math.min(devicePixelRatio, 2);
+
+    // hide default credits handled via CSS; add our own attribution line
+    // Belt-and-braces: no pre-existing imagery layers may survive construction.
+    while (viewer.imageryLayers.length) viewer.imageryLayers.remove(viewer.imageryLayers.get(0), true);
+    setBase('esri');
+    addLabels();
+
+    // camera start: whole earth, gentle cinematic angle
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(20, 18, 24000000),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+    });
+    if (!reduced) startIdleDrift();
+
+    wirePicking();
+    wirePerf();
+    wireTilePump();
+    viewer.camera.moveEnd.addEventListener(HSG.util.debounce(reclipDataLayer, 250));
+    HSG.store.set('ready', true);
+    requestRender();
+  }
+
+  function requestRender() { if (viewer) viewer.scene.requestRender(); }
+
+  /* requestRenderMode means Cesium only draws when told to. Tiles that finish
+     downloading after the last explicit render otherwise stay invisible —
+     the globe shows black quadtree-shaped holes and slits until the next drag.
+     Pump renders for as long as the tile queue is non-empty. */
+  let tilePump = null, tilePumpSince = 0;
+  function wireTilePump() {
+    viewer.scene.globe.tileLoadProgressEvent.addEventListener(queued => {
+      if (queued > 0) {
+        if (!tilePump) {
+          tilePumpSince = performance.now();
+          tilePump = setInterval(() => {
+            requestRender();
+            if (performance.now() - tilePumpSince > 30000) { clearInterval(tilePump); tilePump = null; }
+          }, 100);
+        }
+      } else if (tilePump) {
+        clearInterval(tilePump); tilePump = null;
+        requestRender();
+      }
+    });
+  }
+
+  /* ---------- base maps ---------- */
+  function esriProvider() {
+    return new Cesium.UrlTemplateImageryProvider({ url: HSG.CONFIG.ESRI_IMAGERY, maximumLevel: 18 });
+  }
+  function setBase(id) {
+    if (!viewer) return;
+    HSG.store.set('base', id);
+    if (baseLayer) viewer.imageryLayers.remove(baseLayer, true);
+    if (underLayer) viewer.imageryLayers.remove(underLayer, true);
+    baseLayer = null; underLayer = null;
+    const layers = viewer.imageryLayers;
+    if (id === 'esri') {
+      baseLayer = layers.addImageryProvider(esriProvider(), 0);
+    } else {
+      // NASA bases sit ON TOP of Esri: where a daily mosaic has a genuine
+      // no-observation gap (made transparent by the JPEG scrubber) or a tile
+      // fails, Esri satellite shows through instead of a black hole.
+      underLayer = layers.addImageryProvider(esriProvider(), 0);
+      if (id === 'gibs') {
+        baseLayer = layers.addImageryProvider(gibsProvider('VIIRS_SNPP_CorrectedReflectance_TrueColor', 'image/jpeg', 'GoogleMapsCompatible_Level9', 9, HSG.store.get('layerDate')), 1);
+      } else { // dark
+        baseLayer = layers.addImageryProvider(gibsProvider('VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance', 'image/png', 'GoogleMapsCompatible_Level8', 8, HSG.store.get('layerDate')), 1);
+      }
+    }
+    document.querySelectorAll('.base-opt').forEach(b => b.classList.toggle('active', b.dataset.base === id));
+    requestRender();
+  }
+
+  function gibsProvider(layer, format, matrix, maxLevel, date, snap, rect, raw) {
+    // GIBS Web-Mercator (epsg3857) endpoint — the standard GoogleMapsCompatible
+    // grid, identical to the Esri base grid, so NASA imagery registers exactly
+    // on the globe. (The epsg4326 grids don't double per level and misalign in
+    // Cesium.) Date is baked into the URL — no clock/times machinery.
+    let eff = snap === 'modis8day' ? HSG.util.snapModis8day(date) : (snap === 'modis16day' ? HSG.util.snapModis16day(date) : (snap === 'modis8dayLst' ? HSG.util.snapModis8dayLst(date) : date));
+    // Composite layers fall back by whole periods, daily layers by days.
+    const stepDays = snap === 'modis16day' ? 16 : (snap ? 8 : 1);
+    // Night-lights (Black Marble gap-filled) lags ~2 days behind the other
+    // layers: requesting yesterday returns 404 for EVERY tile (verified
+    // 2026-10-26: Oct 25 = all 404, Oct 24 = fine). Clamp its date so the
+    // Dark base and Night Lights layer can never go fully black.
+    if (layer === 'VIIRS_SNPP_GapFilled_BRDF_Corrected_DayNightBand_Radiance') {
+      const latest = HSG.util.isoDay(-2);
+      if (eff > latest) eff = latest;
+    }
+    const ext = format === 'image/jpeg' ? 'jpg' : 'png';
+    const url = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${layer}/default/${eff}/${matrix}/{z}/{y}/{x}.${ext}`;
+    const opts = {
+      url, maximumLevel: maxLevel,
+      tileWidth: 256, tileHeight: 256,
+      tilingScheme: new Cesium.WebMercatorTilingScheme(),
+      credit: 'NASA GIBS',
+    };
+    if (rect) opts.rectangle = rect; // only fetch/render tiles inside the region being viewed
+    const prov = new Cesium.UrlTemplateImageryProvider(opts);
+    prov._hsgEffDate = eff;
+    if (!raw) {
+      if (format === 'image/jpeg') enhanceJpegProvider(prov, layer, format, matrix, maxLevel, eff, rect, stepDays);
+      else enhanceRetryProvider(prov, layer, format, matrix, maxLevel, eff, rect, stepDays);
+    }
+    return prov;
+  }
+
+  /* Any GIBS layer can have a bad day (a 404 date, a transient 502 — both seen
+     in audits). On a tile load error, retry the same tile up to 3 days back
+     before giving up, so one missing date never holes the planet. */
+  function shiftDay(iso, days) {
+    const d = new Date(iso + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+  function dateFallbacks(layer, format, matrix, maxLevel, effDate, rect, stepDays = 1) {
+    return [-1, -2, -3].map(k => gibsProvider(layer, format, matrix, maxLevel, shiftDay(effDate, k * stepDays), null, rect, true));
+  }
+  function enhanceRetryProvider(prov, layer, format, matrix, maxLevel, effDate, rect, stepDays = 1) {
+    let fallbacks = null;
+    const orig = prov.requestImage.bind(prov);
+    prov.requestImage = (x, y, level, request) => {
+      if (!fallbacks) fallbacks = dateFallbacks(layer, format, matrix, maxLevel, effDate, rect, stepDays);
+      const chain = (providers, req) => {
+        const [head, ...rest] = providers;
+        const r = head === prov ? orig(x, y, level, req) : head.requestImage(x, y, level, req);
+        // CRITICAL: Cesium's requestImage returns undefined (NOT a promise)
+        // when its request throttle is full — Cesium then retries the tile
+        // itself. Pass undefined straight through; calling .catch/.then on
+        // it crashes the renderer ("Cannot read properties of undefined").
+        if (r === undefined || !rest.length) return r;
+        return Promise.resolve(r).catch(err => {
+          const fb = chain(rest, undefined);
+          if (fb === undefined) throw err; // fallback throttled too — report the real error
+          return fb;
+        });
+      };
+      return chain([prov, ...fallbacks], request);
+    };
+  }
+
+  /* GIBS JPEG mosaics encode "no observation" as a solid black tile (or a tile
+     with black swath wedges). Rendered raw, the planet gets black holes.
+     Fix per tile: near-black pixels become transparent (the layer beneath —
+     Esri or the active base — shows through), and a tile that fails to load
+     or comes back fully black is retried against the previous two days. */
+  const sampleCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  function blackFraction(img) {
+    if (!sampleCanvas || !img || !img.width || !img.height) return 0;
+    try {
+      const w = 64, h = 64;
+      sampleCanvas.width = w; sampleCanvas.height = h;
+      const ctx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h).data;
+      let black = 0, n = 0;
+      for (let i = 0; i < d.length; i += 16) {
+        n++;
+        if (d[i] < 12 && d[i + 1] < 12 && d[i + 2] < 12) black++;
+      }
+      return n ? black / n : 0;
+    } catch { return 0; } // tainted canvas etc. — leave the tile untouched
+  }
+  function scrubbed(img) {
+    const frac = blackFraction(img);
+    if (frac < 0.02) return { img, frac };
+    try {
+      const cv = document.createElement('canvas');
+      cv.width = img.width; cv.height = img.height;
+      const ctx = cv.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const im = ctx.getImageData(0, 0, cv.width, cv.height);
+      const d = im.data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] < 14 && d[i + 1] < 14 && d[i + 2] < 14) d[i + 3] = 0;
+      }
+      ctx.putImageData(im, 0, 0);
+      return { img: cv, frac };
+    } catch { return { img, frac }; }
+  }
+  function enhanceJpegProvider(prov, layer, format, matrix, maxLevel, effDate, rect, stepDays = 1) {
+    // NOTE: do NOT assign prov.hasAlphaChannel — Cesium defines it get-only,
+    // and in a module (strict mode) the assignment throws, killing every JPEG
+    // provider (True Color base, Time Machine). UrlTemplate defaults it true.
+    let fallbacks = null;
+    const getFallbacks = () => {
+      if (!fallbacks) fallbacks = dateFallbacks(layer, format, matrix, maxLevel, effDate, rect, stepDays);
+      return fallbacks;
+    };
+    const orig = prov.requestImage.bind(prov);
+    prov.requestImage = (x, y, level, request) => {
+      const attempt = (p, req) => p === prov ? orig(x, y, level, req) : p.requestImage(x, y, level, req);
+      const loadBest = (providers, req) => {
+        const [head, ...rest] = providers;
+        const r = attempt(head, req);
+        if (r === undefined) return undefined; // Cesium throttle — see enhanceRetryProvider note
+        return Promise.resolve(r).then(img => {
+          const s = scrubbed(img);
+          if (s.frac > 0.97 && rest.length) {
+            const fb = loadBest(rest, undefined);
+            if (fb === undefined) return s.img;
+            return fb.catch(() => s.img);
+          }
+          return s.img;
+        }).catch(err => {
+          if (!rest.length) throw err;
+          const fb = loadBest(rest, undefined);
+          if (fb === undefined) throw err;
+          return fb;
+        });
+      };
+      return loadBest([prov, ...getFallbacks()], request);
+    };
+  }
+
+  /* The region the user is actually looking at, padded — data layers are
+     scoped to this so the app never loads whole-planet tiles for a city view. */
+  let clipKey = '';
+  function currentViewRect(alwaysClip) {
+    if (!viewer) return null;
+    if (!alwaysClip && viewer.camera.positionCartographic.height > 6000000) return null; // near-hemisphere view: no clip
+    let r = null;
+    try { r = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid); } catch { /* not ready */ }
+    if (!r) return null;
+    let west = Cesium.Math.toDegrees(r.west), east = Cesium.Math.toDegrees(r.east);
+    let south = Cesium.Math.toDegrees(r.south), north = Cesium.Math.toDegrees(r.north);
+    const w = east - west, h = north - south;
+    if (!(w > 0) || w > 340 || !(h > 0)) return null; // whole globe or antimeridian wrap
+    west = Math.max(-180, west - w * 0.35); east = Math.min(180, east + w * 0.35);
+    // clamp to the Web-Mercator limit (±85°) with margin — beyond it no tiles exist
+    south = Math.max(-84.9, south - h * 0.35); north = Math.min(84.9, north + h * 0.35);
+    return Cesium.Rectangle.fromDegrees(west, south, east, north);
+  }
+  function rectKey(r) {
+    if (!r) return 'full';
+    const d = Cesium.Math.toDegrees;
+    return [r.west, r.south, r.east, r.north].map(v => Math.round(d(v))).join(',');
+  }
+
+  function addLabels() {
+    labelsLayer = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+      url: HSG.CONFIG.ESRI_LABELS, maximumLevel: 12,
+    }));
+    labelsLayer.alpha = 0;
+    // curated fade: labels appear as you zoom in (Google-Earth-smooth feel)
+    viewer.camera.changed.addEventListener(() => {
+      const h = viewer.camera.positionCartographic.height;
+      const target = h < 9000000 ? Math.min(1, Math.max(0, (9000000 - h) / 6000000)) : 0;
+      if (Math.abs(labelsLayer.alpha - target) > 0.02) {
+        labelsLayer.alpha += (target - labelsLayer.alpha) * 0.15;
+        requestRender();
+      }
+    });
+  }
+
+  /* ---------- data layer ---------- */
+  function setDataLayer(layerId, opacity) {
+    if (!viewer) return;
+    if (dataLayer) { viewer.imageryLayers.remove(dataLayer, true); dataLayer = null; }
+    HSG.store.set('layer', layerId);
+    HSG.store.set('layerOpacity', opacity);
+    clipKey = '';
+    if (!layerId) { updateLayerStatus(); requestRender(); return; }
+    buildDataLayer(HSG.LAYERS.find(l => l.id === layerId), opacity, true);
+    updateLayerStatus();
+  }
+
+  function buildDataLayer(def, opacity, fade) {
+    const rect = currentViewRect(def && def.alwaysClip);
+    clipKey = rectKey(rect);
+    const prov = gibsProvider(def.gibs.layer, def.gibs.format, def.gibs.matrix, def.gibs.maxLevel, HSG.store.get('layerDate'), def.gibs.snap, rect);
+    effDate = prov._hsgEffDate;
+    // surface tile failures instead of failing silently
+    tileErrs = 0;
+    const onTileErr = () => {
+      tileErrs++;
+      if (tileErrs === 15) {
+        HSG.util.toast('Layer tiles are failing to load — the satellite server may be unreachable from your network. Try another layer.', 'err');
+        prov.errorEvent.removeEventListener(onTileErr);
+      }
+    };
+    prov.errorEvent.addEventListener(onTileErr);
+    dataLayer = viewer.imageryLayers.addImageryProvider(prov);
+    if (labelsLayer) viewer.imageryLayers.raiseToTop(labelsLayer); // place names stay above data
+    const me = dataLayer;
+    if (!fade || reduced) { me.alpha = opacity; requestRender(); return; }
+    me.alpha = 0;
+    // cinematic reveal: fade in
+    const t0 = performance.now();
+    (function step() {
+      if (dataLayer !== me) return; // superseded by a newer layer
+      const k = Math.min(1, (performance.now() - t0) / 900);
+      me.alpha = (k * k * (3 - 2 * k)) * opacity;
+      requestRender();
+      if (k < 1) requestAnimationFrame(step);
+    })();
+  }
+
+  /* Re-scope the active layer to the region in view after the camera settles */
+  function reclipDataLayer() {
+    const id = HSG.store.get('layer');
+    if (!id || !dataLayer || !viewer) return;
+    const def = HSG.LAYERS.find(l => l.id === id);
+    const rect = currentViewRect(def && def.alwaysClip);
+    const key = rectKey(rect);
+    const prev = clipKey.split(',').map(Number), next = key.split(',').map(Number);
+    const moved = key === 'full' || clipKey === 'full' || prev.some((v, i) => Math.abs(v - next[i]) > 1);
+    if (!moved) return;
+    const alpha = dataLayer.alpha;
+    viewer.imageryLayers.remove(dataLayer, true);
+    dataLayer = null;
+    buildDataLayer(HSG.LAYERS.find(l => l.id === id), HSG.store.get('layerOpacity'), false);
+    if (dataLayer) dataLayer.alpha = alpha;
+  }
+
+  function setDataLayerOpacity(v) {
+    HSG.store.set('layerOpacity', v);
+    if (dataLayer) { dataLayer.alpha = v; requestRender(); }
+  }
+
+  function setLayerDate(date) {
+    HSG.store.set('layerDate', date);
+    const id = HSG.store.get('layer');
+    if (id) setDataLayer(id, HSG.store.get('layerOpacity'));
+    if (HSG.store.get('base') === 'gibs' || HSG.store.get('base') === 'dark') setBase(HSG.store.get('base'));
+    updateLayerStatus();
+  }
+
+  function updateLayerStatus() {
+    const el = HSG.util.el('layer-status');
+    const id = HSG.store.get('layer');
+    if (!id) { el.textContent = ''; return; }
+    const def = HSG.LAYERS.find(l => l.id === id);
+    el.textContent = `◈ ${def.name} · observed ≈ ${HSG.util.fmtDate(effDate)} · ${def.satellite.source}`;
+  }
+
+  /* ---------- time machine compare layers ---------- */
+  function setCompare(dateA, dateB, split) {
+    clearCompare();
+    try { setCompareInner(dateA, dateB, split); }
+    catch (e) { clearCompare(); throw e; } // never leave half-applied compare layers on the globe
+  }
+  function setCompareInner(dateA, dateB, split) {
+    let warned = false, errs = 0;
+    const mk = (date) => {
+      const prov = gibsProvider('MODIS_Terra_CorrectedReflectance_TrueColor', 'image/jpeg', 'GoogleMapsCompatible_Level9', 9, date);
+      prov.errorEvent.addEventListener(() => {
+        errs++;
+        if (errs === 4 && !warned) {
+          warned = true;
+          HSG.util.toast('Some imagery for those dates is unavailable — try dates a few days apart from today, or a different year.', 'err');
+        }
+      });
+      const l = viewer.imageryLayers.addImageryProvider(prov);
+      l.alpha = 1;
+      return l;
+    };
+    const la = mk(dateA), lb = mk(dateB);
+    la.splitDirection = Cesium.SplitDirection.LEFT;
+    lb.splitDirection = Cesium.SplitDirection.RIGHT;
+    viewer.scene.splitPosition = split;
+    compareLayers = [la, lb];
+    if (labelsLayer) viewer.imageryLayers.raiseToTop(labelsLayer);
+    requestRender();
+  }
+  function setSplit(v) {
+    HSG.store.set('split', v);
+    if (viewer) { viewer.scene.splitPosition = v; requestRender(); }
+  }
+  function clearCompare() {
+    compareLayers.forEach(l => viewer.imageryLayers.remove(l, true));
+    compareLayers = [];
+    if (viewer) requestRender();
+  }
+
+  /* ---------- events / pins ---------- */
+  function pinImage(color) {
+    const c = document.createElement('canvas'); c.width = c.height = 40;
+    const x = c.getContext('2d');
+    x.beginPath(); x.arc(20, 16, 11, 0, 7); x.fillStyle = color; x.fill();
+    x.lineWidth = 2.5; x.strokeStyle = 'rgba(255,255,255,.9)'; x.stroke();
+    x.beginPath(); x.moveTo(13, 24); x.lineTo(20, 38); x.lineTo(27, 24); x.closePath();
+    x.fillStyle = color; x.fill();
+    return c.toDataURL();
+  }
+
+  function addEventPins(events) {
+    clearPins('event');
+    events.forEach(ev => {
+      const [lon, lat] = eventLonLat(ev);
+      if (lon == null) return;
+      const cat = ev.categories[0].id;
+      const color = (HSG.CATEGORIES[cat] || {}).color || '#22d3ee';
+      const e = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        billboard: { image: pinImage(color), width: 26, height: 26, verticalOrigin: Cesium.VerticalOrigin.BOTTOM, scaleByDistance: new Cesium.NearFarScalar(2e6, 1.4, 2e7, 0.6) },
+        properties: { kind: 'event', id: ev.id },
+      });
+      e._hsgKind = 'event'; e._hsgId = ev.id;
+      pinEntities.push(e);
+    });
+    requestRender();
+  }
+
+  function addLocationPin(lat, lon, color = '#22d3ee', id = 'loc', clearFirst = true) {
+    if (clearFirst) clearPins(id);
+    const e = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat),
+      billboard: { image: pinImage(color), width: 30, height: 30, verticalOrigin: Cesium.VerticalOrigin.BOTTOM },
+    });
+    e._hsgKind = id;
+    pinEntities.push(e);
+    requestRender();
+    return e;
+  }
+
+  function clearPins(kind) {
+    pinEntities = pinEntities.filter(e => {
+      if (!kind || e._hsgKind === kind || (kind === 'event' && e._hsgKind === 'event')) {
+        viewer.entities.remove(e); return false;
+      }
+      return true;
+    });
+    requestRender();
+  }
+
+  function eventLonLat(ev) {
+    const g = ev.geometry || [];
+    const last = g[g.length - 1];
+    if (!last) return [null, null];
+    const c = last.coordinates;
+    if (last.type === 'Point') return [c[0], c[1]];
+    // polygon: centroid of first ring
+    const ring = c[0] || [];
+    let x = 0, y = 0;
+    ring.forEach(p => { x += p[0]; y += p[1]; });
+    return ring.length ? [x / ring.length, y / ring.length] : [null, null];
+  }
+
+  /* ---------- camera ---------- */
+  function flyTo(lat, lon, height = 2500000, dur) {
+    if (!viewer) return;
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-70), roll: 0 },
+      duration: reduced ? 0 : (dur || 2.4),
+      easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
+    });
+  }
+
+  function startIdleDrift() {
+    let last = 0;
+    viewer.clock.onTick.addEventListener((clock) => {
+      const now = performance.now();
+      if (now - last < 50) return;
+      last = now;
+      if (HSG.store.get('mode') === 'explore' && !HSG.store.get('location')) {
+        const h = viewer.camera.positionCartographic.height;
+        if (h > 18000000) { viewer.camera.rotateLeft(0.00012); requestRender(); }
+      }
+    });
+  }
+
+  /* ---------- picking ---------- */
+  let downPos = null, downTime = 0;
+  function wirePicking() {
+    const canvas = viewer.scene.canvas;
+    canvas.addEventListener('pointerdown', e => { downPos = [e.clientX, e.clientY]; downTime = Date.now(); });
+    canvas.addEventListener('pointerup', e => {
+      if (!downPos) return;
+      const dx = e.clientX - downPos[0], dy = e.clientY - downPos[1];
+      const dt = Date.now() - downTime;
+      downPos = null;
+      if (Math.hypot(dx, dy) > 6 || dt > 400) return; // was a drag
+      const picked = viewer.scene.pick(new Cesium.Cartesian2(e.clientX, e.clientY));
+      if (picked && picked.id && picked.id._hsgKind === 'event') {
+        HSG.pulse.openEvent(picked.id._hsgId);
+        return;
+      }
+      const cart = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(e.clientX, e.clientY), viewer.scene.globe.ellipsoid);
+      if (!cart) return;
+      const c = Cesium.Cartographic.fromCartesian(cart);
+      const lat = Cesium.Math.toDegrees(c.latitude), lon = Cesium.Math.toDegrees(c.longitude);
+      if (HSG.store.get('mode') === 'compare') HSG.compare.pickFromMap(lat, lon);
+      else HSG.fingerprint.inspect(lat, lon);
+    });
+    // coordinate readout
+    canvas.addEventListener('pointermove', HSG.util.debounce(e => {
+      const cart = viewer.camera.pickEllipsoid(new Cesium.Cartesian2(e.clientX, e.clientY), viewer.scene.globe.ellipsoid);
+      const el = HSG.util.el('coords');
+      if (!cart) { el.textContent = '—'; return; }
+      const c = Cesium.Cartographic.fromCartesian(cart);
+      el.textContent = `${Math.abs(Cesium.Math.toDegrees(c.latitude)).toFixed(2)}°${c.latitude >= 0 ? 'N' : 'S'}  ${Math.abs(Cesium.Math.toDegrees(c.longitude)).toFixed(2)}°${c.longitude >= 0 ? 'E' : 'W'}`;
+    }, 60));
+  }
+
+  function wirePerf() {
+    let frames = 0, t0 = performance.now();
+    viewer.scene.postRender.addEventListener(() => {
+      frames++;
+      const now = performance.now();
+      if (now - t0 > 2000) {
+        const fps = Math.round(frames * 1000 / (now - t0));
+        HSG.util.el('perf').textContent = viewer.requestRenderMode ? `render-on-demand · ${fps} fps` : `${fps} fps`;
+        frames = 0; t0 = now;
+      }
+    });
+  }
+
+  function cameraHeight() { return viewer ? viewer.camera.positionCartographic.height : 0; }
+  function viewCenter() {
+    if (!viewer) return null;
+    const cart = viewer.camera.pickEllipsoid(
+      new Cesium.Cartesian2(viewer.canvas.clientWidth / 2, viewer.canvas.clientHeight / 2),
+      viewer.scene.globe.ellipsoid);
+    if (!cart) return null;
+    const c = Cesium.Cartographic.fromCartesian(cart);
+    return { lat: Cesium.Math.toDegrees(c.latitude), lon: Cesium.Math.toDegrees(c.longitude) };
+  }
+
+  return {
+    init, flyTo, setBase, setDataLayer, setDataLayerOpacity, setLayerDate,
+    setCompare, setSplit, clearCompare,
+    addEventPins, addLocationPin, clearPins, eventLonLat,
+    requestRender, cameraHeight, viewCenter,
+    get viewer() { return viewer; }, get cesium() { return Cesium; },
+  };
+})();
+
+
+/* ===== layers.js ===== */
+/* Layers mode — data layer picker, opacity, legends, satellite facts */
+HSG.layersUI = (() => {
+  const u = HSG.util;
+
+  function render() {
+    const body = u.el('panel-body');
+    const active = HSG.store.get('layer');
+    const date = HSG.store.get('layerDate');
+    body.innerHTML = `
+      <div class="sec">
+        <h3>Planetary X-Ray</h3>
+        <p class="small muted" style="line-height:1.6;margin-bottom:12px">Reveal hidden dimensions of the same planet. Every layer is a real satellite observation — never a simulation. Data loads only for the region on your screen and follows as you pan and zoom.</p>
+        ${HSG.LAYERS.map(l => `
+          <div class="layer-card ${active === l.id ? 'active' : ''}" data-layer="${l.id}" role="button" tabindex="0" aria-pressed="${active === l.id}">
+            <div class="row"><b>${u.esc(l.name)}</b><span class="dot" style="background:${l.color}"></span></div>
+            <p>${u.esc(l.desc)}</p>
+          </div>`).join('')}
+      </div>
+      <div class="sec" id="layer-detail"></div>
+      <div class="sec">
+        <h3>Observation date</h3>
+        <div class="date-field"><input type="date" id="layer-date" value="${date}" max="${u.isoDay(-1)}" min="2000-02-24" aria-label="Layer observation date"></div>
+        <p class="tiny muted" style="margin-top:6px;line-height:1.5">Layers follow the satellite's actual revisit schedule. If the exact day has no acquisition, the nearest available observation is shown.</p>
+      </div>`;
+    body.querySelectorAll('.layer-card').forEach(c => {
+      const toggle = () => select(c.dataset.layer);
+      c.addEventListener('click', toggle);
+      c.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+    });
+    u.el('layer-date').addEventListener('change', e => {
+      HSG.globe.setLayerDate(e.target.value);
+      render();
+    });
+    renderDetail();
+  }
+
+  function select(id) {
+    try {
+      const cur = HSG.store.get('layer');
+      const next = cur === id ? null : id;
+      if (next) {
+        const def = HSG.LAYERS.find(l => l.id === next);
+        u.toast('Loading ' + def.name + '…');
+      }
+      HSG.globe.setDataLayer(next, HSG.store.get('layerOpacity'));
+      render();
+    } catch (e) {
+      console.error('[layers] select failed', e);
+      u.toast('Layer failed: ' + (e && e.message ? e.message : e), 'err');
+    }
+  }
+
+  function renderDetail() {
+    const host = u.el('layer-detail');
+    if (!host) return;
+    const id = HSG.store.get('layer');
+    if (!id) { host.innerHTML = ''; return; }
+    const l = HSG.LAYERS.find(x => x.id === id);
+    const op = Math.round(HSG.store.get('layerOpacity') * 100);
+    const grad = l.legend ? `background:linear-gradient(90deg,${l.legend.stops.join(',')})` : 'background:rgba(255,255,255,.06)';
+    host.innerHTML = `
+      <h3>Layer controls</h3>
+      <label class="tiny muted">Opacity — ${op}%</label>
+      <input type="range" class="slider" id="layer-opacity" min="10" max="100" value="${op}" aria-label="Layer opacity">
+      ${l.legend ? `<div class="legend"><div class="legend-bar" style="${grad}"></div>
+        <div class="legend-labels"><span>${l.legend.min}${l.unit}</span><span>${l.unit}</span><span>${l.legend.max}${l.unit}</span></div></div>` : ''}
+      ${l.note ? `<p class="tiny muted" style="margin-top:10px;line-height:1.6">◈ ${u.esc(l.note)}</p>` : ''}
+      <div style="height:12px"></div>
+      <h3>Satellite replay</h3>
+      <div class="sat-info">
+        <b>${u.esc(l.satellite.platform)}</b> · ${u.esc(l.satellite.sensor)}<br>
+        Resolution <b>${u.esc(l.satellite.resolution)}</b> · Revisit <b>${u.esc(l.satellite.revisit)}</b><br>
+        ${u.esc(l.satellite.processing)}<br>
+        Source: <a href="${l.satellite.link}" target="_blank" rel="noopener">${u.esc(l.satellite.source)}</a>
+      </div>
+      <button class="btn ghost sm block" id="layer-off">Remove layer</button>`;
+    u.el('layer-opacity').addEventListener('input', e => {
+      HSG.globe.setDataLayerOpacity(e.target.value / 100);
+      e.target.previousElementSibling.textContent = `Opacity — ${e.target.value}%`;
+    });
+    u.el('layer-off').addEventListener('click', () => select(id));
+  }
+
+  return { render };
+})();
+
+
+/* ===== search.js ===== */
+/* Geographic search — Nominatim */
+HSG.search = (() => {
+  const u = HSG.util;
+  let items = [], activeIdx = -1;
+
+  function init() {
+    const input = u.el('search'), box = u.el('search-results');
+    input.addEventListener('input', u.debounce(onType, 350));
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!items.length) return;
+        e.preventDefault();
+        activeIdx = (activeIdx + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+        paint();
+      } else if (e.key === 'Enter') {
+        if (items[activeIdx]) choose(items[activeIdx]);
+        else if (items[0]) choose(items[0]);
+      } else if (e.key === 'Escape') { box.hidden = true; }
+    });
+    document.addEventListener('click', e => {
+      if (!u.el('search-wrap').contains(e.target)) box.hidden = true;
+    });
+  }
+
+  async function onType() {
+    const q = u.el('search').value.trim();
+    const box = u.el('search-results');
+    if (q.length < 3) { box.hidden = true; items = []; return; }
+    try {
+      const url = `${HSG.CONFIG.NOMINATIM_URL}?format=jsonv2&limit=6&q=${encodeURIComponent(q)}`;
+      items = await u.getJSON(url);
+      activeIdx = -1;
+      paint();
+    } catch { box.hidden = true; }
+  }
+
+  function paint() {
+    const box = u.el('search-results');
+    if (!items.length) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = items.map((r, i) => `
+      <button class="sr-item ${i === activeIdx ? 'active' : ''}" data-i="${i}" role="option">
+        <b>${u.esc(r.name || r.display_name.split(',')[0])}</b>
+        <small>${u.esc(r.display_name)}</small>
+      </button>`).join('');
+    box.querySelectorAll('.sr-item').forEach(b => b.addEventListener('click', () => choose(items[+b.dataset.i])));
+  }
+
+  function choose(r) {
+    u.el('search-results').hidden = true;
+    u.el('search').value = r.name || r.display_name.split(',')[0];
+    const lat = +r.lat, lon = +r.lon;
+    const bb = r.boundingbox ? r.boundingbox.map(Number) : null;
+    const h = bb ? Math.max(200000, (bb[1] - bb[0]) * 111000 * 4) : 2500000;
+    HSG.globe.flyTo(lat, lon, Math.min(h, 12000000));
+    HSG.fingerprint.inspect(lat, lon, r.display_name.split(',').slice(0, 2).join(','));
+  }
+
+  return { init };
+})();
+
+
+/* ===== pulse.js ===== */
+/* Earth Pulse — live natural events from NASA EONET */
+HSG.pulse = (() => {
+  const u = HSG.util;
+  let shown = 60;
+
+  async function load() {
+    try {
+      const data = await u.getJSON(`${HSG.CONFIG.EONET_URL}?status=open&limit=500`);
+      const events = (data.events || []).map(normalize).filter(e => e.lat != null);
+      events.sort((a, b) => new Date(b.date) - new Date(a.date));
+      HSG.store.set('events', events);
+      HSG.store.set('eventsLoaded', true);
+      HSG.globe.addEventPins(filtered());
+    } catch (e) {
+      console.warn('EONET failed', e);
+      u.toast('Event feed unavailable — check connection', 'err');
+    }
+  }
+
+  function normalize(ev) {
+    const geoms = ev.geometry || [];
+    const g = geoms[geoms.length - 1] || {};
+    let lon = null, lat = null;
+    if (g.type === 'Point' && g.coordinates) { lon = g.coordinates[0]; lat = g.coordinates[1]; }
+    else if (g.coordinates && g.coordinates[0]) {
+      const ring = g.coordinates[0];
+      let x = 0, y = 0, n = 0;
+      const flat = Array.isArray(ring[0]) && Array.isArray(ring[0][0]) ? ring[0] : ring;
+      flat.forEach(p => { if (Array.isArray(p)) { x += p[0]; y += p[1]; n++; } });
+      if (n) { lon = x / n; lat = y / n; }
+    }
+    return {
+      id: ev.id, title: ev.title,
+      categories: ev.categories || [{ id: 'manmade', title: 'Event' }],
+      date: g.date || ev.geometry?.[0]?.date,
+      sources: ev.sources || [],
+      link: ev.link, lon, lat,
+      geomCount: geoms.length,
+    };
+  }
+
+  function filtered() {
+    const f = HSG.store.get('eventFilter');
+    return HSG.store.get('events').filter(e => f.has(e.categories[0].id)).slice(0, shown);
+  }
+
+  function render() {
+    const body = u.el('panel-body');
+    if (!HSG.store.get('eventsLoaded')) {
+      body.innerHTML = `<div class="sec"><h3>Earth Pulse</h3><div class="spinner"></div><p class="muted small" style="text-align:center">Contacting NASA EONET…</p></div>`;
+      return;
+    }
+    const list = filtered();
+    const counts = {};
+    HSG.store.get('events').forEach(e => { const c = e.categories[0].id; counts[c] = (counts[c] || 0) + 1; });
+    body.innerHTML = `
+      <div class="sec">
+        <h3>Earth Pulse</h3>
+        <p class="small muted" style="line-height:1.6;margin-bottom:10px">${HSG.store.get('events').length} open events tracked by NASA's Earth Observatory Natural Event Tracker. Times shown are <b>observation times</b> — when the satellite saw it, not a live feed.</p>
+        <div class="evt-filters">
+          ${Object.entries(HSG.CATEGORIES).filter(([id]) => counts[id]).map(([id, c]) =>
+            `<button class="fchip ${HSG.store.get('eventFilter').has(id) ? 'on' : ''}" data-cat="${id}">${c.label} · ${counts[id]}</button>`).join('')}
+        </div>
+        <div id="evt-list">
+          ${list.map(evtCard).join('') || '<div class="empty"><span class="big">🛰</span>No events in this filter.</div>'}
+        </div>
+        ${HSG.store.get('events').length > shown ? `<button class="btn ghost sm block" id="evt-more">Show more</button>` : ''}
+      </div>`;
+    body.querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => {
+      const f = new Set(HSG.store.get('eventFilter'));
+      f.has(b.dataset.cat) ? f.delete(b.dataset.cat) : f.add(b.dataset.cat);
+      HSG.store.set('eventFilter', f);
+      HSG.globe.addEventPins(filtered());
+      render();
+    }));
+    body.querySelectorAll('.evt').forEach(el => {
+      el.addEventListener('click', () => openEvent(el.dataset.id));
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openEvent(el.dataset.id); } });
+    });
+    const more = u.el('evt-more');
+    if (more) more.addEventListener('click', () => { shown += 60; HSG.globe.addEventPins(filtered()); render(); });
+  }
+
+  function evtCard(e) {
+    const cat = e.categories[0];
+    const meta = HSG.CATEGORIES[cat.id] || { label: cat.title, color: '#22d3ee' };
+    return `<div class="evt" data-id="${u.esc(e.id)}" role="button" tabindex="0" aria-label="${u.esc(e.title)}">
+      <div class="row"><span class="chip" style="color:${meta.color};border-color:${meta.color}55">${u.esc(meta.label)}</span></div>
+      <b>${u.esc(e.title)}</b>
+      <div class="when">${u.fmtDate(e.date)} · ${u.relTime(e.date)}${e.geomCount > 1 ? ` · ${e.geomCount} observations` : ''}</div>
+    </div>`;
+  }
+
+  function openEvent(id) {
+    const e = HSG.store.get('events').find(x => x.id === id);
+    if (!e) return;
+    HSG.store.set('selectedEvent', e);
+    document.querySelectorAll('.evt').forEach(el => el.classList.toggle('sel', el.dataset.id === id));
+    HSG.globe.flyTo(e.lat, e.lon, 1800000);
+    HSG.globe.clearPins('event-sel');
+    HSG.globe.addLocationPin(e.lat, e.lon, (HSG.CATEGORIES[e.categories[0].id] || {}).color || '#fbbf24', 'event-sel');
+    const cat = e.categories[0];
+    const meta = HSG.CATEGORIES[cat.id] || { label: cat.title, color: '#22d3ee' };
+    HSG.ui.openInspector(`${meta.label} event`, `
+      <div class="fp-hero"><h3>${u.esc(e.title)}</h3>
+        <div class="coords">${u.fmtNum(e.lat, 3)}°, ${u.fmtNum(e.lon, 3)}°</div></div>
+      <div class="kv">
+        <div class="cell"><div class="k">Observed</div><div class="v" style="font-size:13px">${u.fmtDateTime(e.date)}</div></div>
+        <div class="cell"><div class="k">Reported</div><div class="v" style="font-size:13px">${u.relTime(e.date)}</div></div>
+      </div>
+      <div class="sec"><h3>Evidence</h3>
+        ${e.sources.length ? e.sources.map(s => `
+          <div style="margin-bottom:8px"><a href="${u.esc(s.url)}" target="_blank" rel="noopener" style="color:var(--cyan);font-size:13px">🔗 ${u.esc(s.id || 'Source report')}</a></div>`).join('')
+        : '<p class="small muted">Source reports linked from EONET record.</p>'}
+        ${e.link ? `<div><a href="${u.esc(e.link)}" target="_blank" rel="noopener" style="color:var(--cyan);font-size:12px">View on NASA EONET →</a></div>` : ''}
+      </div>
+      <div class="sec"><h3>About this data</h3>
+        <p class="tiny muted" style="line-height:1.7">EONET tracks natural events reported by NASA's Earth Observatory and partners. An event appears here when it is <b>detected and published</b> — the observation itself may be hours to days old. Boundaries are approximate.</p></div>
+      <button class="btn sm block" id="evt-inspect">Inspect this location</button>`);
+    u.el('evt-inspect').addEventListener('click', () => HSG.fingerprint.inspect(e.lat, e.lon, e.title));
+  }
+
+  return { load, render, openEvent, evtCard, filtered };
+})();
+
+
+/* ===== moments.js ===== */
+/* Earth Moments — discovery engine.
+   Every "moment" is derived from real EONET observations. Nothing is invented:
+   scoring uses recency, category significance, observation count and source count. */
+HSG.moments = (() => {
+  const u = HSG.util;
+  const CAT_W = { volcanoes: 5, wildfires: 4, floods: 4, severeStorms: 3, earthquakes: 4, drought: 2, tempExtremes: 3, landslides: 3, seaLakeIce: 1, snow: 1, dustHaze: 2, manmade: 1, waterColor: 1 };
+
+  function score(e) {
+    const days = Math.max(0, u.daysAgo(e.date) ?? 365);
+    const recency = Math.max(0, 30 - days) / 30;
+    const cat = (CAT_W[e.categories[0].id] || 1) / 5;
+    const obs = Math.min(1, (e.geomCount || 1) / 6);
+    const src = Math.min(1, (e.sources || []).length / 4);
+    return recency * 0.45 + cat * 0.3 + obs * 0.15 + src * 0.1;
+  }
+
+  function build() {
+    const events = HSG.store.get('events');
+    return events.map(e => ({ e, s: score(e) }))
+      .sort((a, b) => b.s - a.s).slice(0, 12).map(({ e, s }) => momentFor(e, s));
+  }
+
+  function momentFor(e, s) {
+    const cat = e.categories[0];
+    const meta = HSG.CATEGORIES[cat.id] || { label: cat.title, color: '#22d3ee' };
+    const days = u.daysAgo(e.date);
+    const headline = headlineFor(e, meta, days);
+    const why = [];
+    if (days != null && days <= 7) why.push(`observed <b>${u.relTime(e.date)}</b> — fresh on the satellite record`);
+    if ((CAT_W[cat.id] || 0) >= 4) why.push(`a <b>high-impact ${meta.label.toLowerCase()}</b> class event`);
+    if ((e.geomCount || 1) > 2) why.push(`tracked across <b>${e.geomCount} observations</b>`);
+    if ((e.sources || []).length > 1) why.push(`corroborated by <b>${e.sources.length} source reports</b>`);
+    if (!why.length) why.push('selected from the current open-event record');
+    return { e, meta, headline, why: why.join('; '), conf: s > 0.6 ? 'High' : s > 0.35 ? 'Medium' : 'Low' };
+  }
+
+  function headlineFor(e, meta, days) {
+    const place = e.title.replace(/^(Wildfire|Volcano|Flood|Storm|Earthquake|Drought)[s]? (in|near|-) /i, '').trim();
+    switch (e.categories[0].id) {
+      case 'wildfires': return `Fire on the landscape near ${place}`;
+      case 'volcanoes': return `Volcanic unrest at ${place}`;
+      case 'floods': return `Flooding reported around ${place}`;
+      case 'severeStorms': return `Severe storm tracked over ${place}`;
+      case 'earthquakes': return `Earthquake detected near ${place}`;
+      default: return `${meta.label} event: ${place}`;
+    }
+  }
+
+  function render() {
+    const body = u.el('panel-body');
+    if (!HSG.store.get('eventsLoaded')) {
+      body.innerHTML = `<div class="sec"><h3>Earth Moments</h3><div class="spinner"></div><p class="muted small" style="text-align:center">Scanning the planet for noteworthy events…</p></div>`;
+      return;
+    }
+    const moments = build();
+    body.innerHTML = `
+      <div class="sec">
+        <h3>Earth Moments</h3>
+        <p class="small muted" style="line-height:1.6;margin-bottom:12px">Noteworthy happenings, selected by the discovery engine from today's open-event record — ranked by freshness, impact class and corroboration. No invented stories.</p>
+        ${moments.length ? moments.map((m, i) => `
+          <div class="moment" data-id="${u.esc(m.e.id)}" role="button" tabindex="0">
+            <div class="kicker" style="color:${m.meta.color}">Moment ${String(i + 1).padStart(2, '0')} · ${u.esc(m.meta.label)}</div>
+            <h4>${u.esc(m.headline)}</h4>
+            <p>${u.esc(m.e.title)} — observed ${u.fmtDate(m.e.date)} (${u.relTime(m.e.date)}).</p>
+            <div class="why"><b>Why selected:</b> ${m.why}.<br><span class="tiny">Confidence ${m.conf} · dataset: NASA EONET · <a href="${u.esc(m.e.link || '#')}" target="_blank" rel="noopener" style="color:var(--cyan)">evidence ↗</a></span></div>
+          </div>`).join('') : '<div class="empty"><span class="big">🛰</span>The event feed is empty or unreachable right now.</div>'}
+      </div>`;
+    body.querySelectorAll('.moment').forEach(el => {
+      const go = () => HSG.pulse.openEvent(el.dataset.id);
+      el.addEventListener('click', go);
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter') go(); });
+    });
+  }
+
+  return { render };
+})();
+
+
+/* ===== timemachine.js ===== */
+/* Time Machine — before/after true-color comparison with split slider */
+HSG.timeMachine = (() => {
+  const u = HSG.util;
+  let active = false;
+
+  function render() {
+    const body = u.el('panel-body');
+    const a = HSG.store.get('timeA'), b = HSG.store.get('timeB');
+    body.innerHTML = `
+      <div class="sec">
+        <h3>Earth Time Machine</h3>
+        <p class="small muted" style="line-height:1.6;margin-bottom:12px">Travel through real satellite observations. Drag the glowing divider on the globe to wipe between two dates.</p>
+        <div class="date-row">
+          <div class="date-field"><label>Then</label><input type="date" id="tm-a" value="${a}" min="2000-02-24" max="${u.isoDay(-1)}"></div>
+          <div class="date-field"><label>Now</label><input type="date" id="tm-b" value="${b}" min="2000-02-24" max="${u.isoDay(-1)}"></div>
+        </div>
+        <button class="btn block" id="tm-go">Compare these dates</button>
+        <button class="btn ghost sm block" id="tm-season">Same season, one year apart</button>
+        <div class="caveat"><b>Read images carefully.</b> Differences in season, sun angle, cloud cover and sensor calibration can look like change. Compare the <b>same season</b> across years for honest change detection — the button above does this for you.</div>
+      </div>
+      <div class="sec">
+        <h3>Satellite replay</h3>
+        <div class="sat-info"><b>Terra</b> · MODIS<br>Resolution <b>250 m</b> · Daily since <b>Feb 2000</b><br>Corrected reflectance, clear-sky pixels preferred.<br>Source: <a href="https://earthdata.nasa.gov" target="_blank" rel="noopener">NASA GIBS</a></div>
+      </div>`;
+    u.el('tm-go').addEventListener('click', start);
+    u.el('tm-season').addEventListener('click', () => {
+      const bDate = u.el('tm-b').value;
+      if (!bDate) { u.toast('Pick the "Now" date first', 'err'); return; }
+      const d = new Date(bDate + 'T00:00:00Z');
+      if (isNaN(d)) { u.toast('That date looks invalid', 'err'); return; }
+      d.setUTCFullYear(d.getUTCFullYear() - 1);
+      u.el('tm-a').value = d.toISOString().slice(0, 10);
+      start();
+    });
+    ['tm-a', 'tm-b'].forEach(id => u.el(id).addEventListener('change', () => { if (active) start(); }));
+  }
+
+  function start() {
+    const a = u.el('tm-a').value, b = u.el('tm-b').value;
+    if (!a || !b) { u.toast('Pick both dates first', 'err'); return; }
+    if (a === b) { u.toast('Pick two different dates', 'err'); return; }
+    const min = '2000-02-24', max = u.isoDay(-1);
+    for (const [label, v] of [['Then', a], ['Now', b]]) {
+      if (isNaN(new Date(v + 'T00:00:00Z'))) { u.toast(`${label} date looks invalid`, 'err'); return; }
+      if (v < min) { u.toast(`${label} date is before satellite coverage starts (Feb 24, 2000)`, 'err'); return; }
+      if (v > max) { u.toast(`${label} date is in the future — yesterday is the latest available`, 'err'); return; }
+    }
+    HSG.store.set('timeA', a); HSG.store.set('timeB', b);
+    active = true;
+    try {
+      HSG.globe.setCompare(a, b, HSG.store.get('split'));
+    } catch (e) {
+      console.error('[time] setCompare failed', e);
+      active = false;
+      u.toast('Time comparison failed: ' + (e && e.message ? e.message : e), 'err');
+      return;
+    }
+    // satellite pixels are 250 m — street-level zoom turns them into mush,
+    // so pull back to a readable altitude before comparing
+    if (HSG.globe.cameraHeight() < 300000) {
+      const c = HSG.globe.viewCenter();
+      if (c) HSG.globe.flyTo(c.lat, c.lon, 900000, 1.6);
+    }
+    u.el('split-label-a').textContent = 'Then · ' + u.fmtDate(a);
+    u.el('split-label-b').textContent = 'Now · ' + u.fmtDate(b);
+    u.el('splitter').hidden = false;
+    u.el('panel').classList.add('hidden-panel'); // give the comparison the full screen
+    positionHandle();
+    u.toast(`Comparing ${u.fmtDate(a)} vs ${u.fmtDate(b)}`);
+  }
+
+  function positionHandle() {
+    const h = document.querySelector('.split-handle');
+    if (h) h.style.left = (HSG.store.get('split') * 100) + '%';
+  }
+
+  function stop() {
+    active = false;
+    HSG.globe.clearCompare();
+    u.el('splitter').hidden = true;
+  }
+
+  function initSplitter() {
+    const handle = document.querySelector('.split-handle');
+    let drag = false;
+    const move = x => {
+      const r = u.el('splitter').getBoundingClientRect();
+      HSG.globe.setSplit(Math.min(0.98, Math.max(0.02, (x - r.left) / r.width)));
+      positionHandle();
+      handle.setAttribute('aria-valuenow', Math.round(HSG.store.get('split') * 100));
+    };
+    handle.addEventListener('pointerdown', e => { drag = true; handle.setPointerCapture(e.pointerId); });
+    handle.addEventListener('pointermove', e => { if (drag) move(e.clientX); });
+    handle.addEventListener('pointerup', () => drag = false);
+    handle.addEventListener('keydown', e => {
+      const s = HSG.store.get('split');
+      if (e.key === 'ArrowLeft') { HSG.globe.setSplit(Math.max(0.02, s - 0.05)); positionHandle(); }
+      if (e.key === 'ArrowRight') { HSG.globe.setSplit(Math.min(0.98, s + 0.05)); positionHandle(); }
+    });
+  }
+
+  return { render, start, stop, initSplitter, get active() { return active; } };
+})();
+
+
+/* ===== fingerprint.js ===== */
+/* Location Fingerprint — click anywhere, get that place's story */
+HSG.fingerprint = (() => {
+  const u = HSG.util;
+  let token = 0;
+
+  async function inspect(lat, lon, knownName) {
+    const my = ++token;
+    HSG.globe.addLocationPin(lat, lon, '#22d3ee', 'loc');
+    const loc = { lat, lon, name: knownName || 'Locating…' };
+    HSG.store.set('location', loc);
+    HSG.ui.openInspector('Location', fpSkeleton(loc));
+    // parallel enrichment
+    const [place, elev, wx] = await Promise.allSettled([
+      reverse(lat, lon), elevation(lat, lon), weather(lat, lon),
+    ]);
+    if (my !== token) return; // superseded
+    const placeV = place.status === 'fulfilled' ? place.value : null;
+    const wxV = wx.status === 'fulfilled' ? wx.value : null;
+    Object.assign(loc, {
+      name: knownName || (placeV && placeV.name) || `${u.fmtNum(lat, 2)}°, ${u.fmtNum(lon, 2)}°`,
+      country: (placeV && placeV.country) || '',
+      // OpenTopoData can rate-limit/fail; Open-Meteo's response carries the
+      // grid elevation for the same point — use it as the fallback so the
+      // Elevation cell is not left blank.
+      elevation: (elev.status === 'fulfilled' && elev.value != null) ? elev.value
+        : (wxV && wxV.meteoElev != null ? wxV.meteoElev : null),
+      weather: wxV,
+    });
+    HSG.store.set('location', { ...loc });
+    if (my === token) HSG.ui.openInspector('Location', fpFull(loc));
+  }
+
+  function fpSkeleton(loc) {
+    return `<div class="fp-hero"><h3>${u.esc(loc.name)}</h3>
+      <div class="coords">${u.fmtNum(loc.lat, 4)}°, ${u.fmtNum(loc.lon, 4)}°</div></div>
+      <div class="spinner"></div><p class="muted small" style="text-align:center">Reading this place…</p>`;
+  }
+
+  function fpFull(loc) {
+    const w = loc.weather || {};
+    const nearby = HSG.store.get('events')
+      .map(e => ({ e, d: u.haversineKm(loc.lat, loc.lon, e.lat, e.lon) }))
+      .filter(x => x.d < 500).sort((a, b) => a.d - b.d).slice(0, 4);
+    const wxCode = { 0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast', 45: 'Fog', 48: 'Icy fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Dense drizzle', 56: 'Freezing drizzle', 57: 'Freezing drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain', 67: 'Freezing rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 77: 'Snow grains', 80: 'Light showers', 81: 'Showers', 82: 'Violent showers', 85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm', 96: 'Thunderstorm + hail', 99: 'Thunderstorm + hail' };
+    return `
+      <div class="fp-hero"><h3>${u.esc(loc.name)}</h3>
+        <div class="coords">${u.fmtNum(loc.lat, 4)}°${loc.lat >= 0 ? 'N' : 'S'}, ${u.fmtNum(Math.abs(loc.lon), 4)}°${loc.lon >= 0 ? 'E' : 'W'}${loc.country ? ' · ' + u.esc(loc.country) : ''}</div></div>
+      <div class="kv">
+        <div class="cell"><div class="k">Elevation</div><div class="v">${loc.elevation != null ? u.fmtNum(loc.elevation, 0) + '<small> m</small>' : '—'}</div></div>
+        <div class="cell"><div class="k">Right now</div><div class="v">${w.temp != null ? u.fmtNum(w.temp, 0) + '<small> °C</small>' : '—'}</div></div>
+        <div class="cell"><div class="k">Conditions</div><div class="v" style="font-size:13px">${u.esc(wxCode[w.code] || w.desc || '—')}</div></div>
+        <div class="cell"><div class="k">Humidity</div><div class="v">${w.hum != null ? w.hum + '<small> %</small>' : '—'}</div></div>
+      </div>
+      <div class="sec"><h3>Annual mean temperature — 5 years</h3>
+        ${w.trend ? u.spark(w.trend.values, 300, 64, '#fbbf24') : '<p class="tiny muted">Trend unavailable for this location.</p>'}
+        <p class="tiny muted" style="margin-top:6px">ERA5 reanalysis via Open-Meteo · ${w.trend ? w.trend.years[0] + '–' + w.trend.years[w.trend.years.length - 1] : ''}</p></div>
+      <div class="sec"><h3>Events nearby (500 km)</h3>
+        ${nearby.length ? nearby.map(({ e, d }) => `
+          <div class="evt" data-eid="${u.esc(e.id)}" role="button" tabindex="0">
+            <b>${u.esc(e.title)}</b><div class="when">${Math.round(d)} km away · ${u.relTime(e.date)}</div></div>`).join('')
+        : '<p class="small muted">No tracked events near here right now.</p>'}</div>
+      <div class="row" style="gap:8px">
+        <button class="btn sm grow" id="fp-compare">＋ Compare</button>
+        <button class="btn ghost sm grow" id="fp-ask">Ask about here</button>
+      </div>`;
+  }
+
+  async function reverse(lat, lon) {
+    const d = await u.getJSON(`${HSG.CONFIG.REVERSE_URL}?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+    return { name: d.city || d.locality || d.principalSubdivision || '', country: d.countryName || '' };
+  }
+  async function elevation(lat, lon) {
+    const d = await u.getJSON(`${HSG.CONFIG.ELEV_URL}?locations=${lat},${lon}`);
+    return d.results?.[0]?.elevation ?? null;
+  }
+  async function weather(lat, lon) {
+    const cur = await u.getJSON(`${HSG.CONFIG.METEO_URL}?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code&timezone=auto`);
+    let trend = null;
+    try {
+      const end = new Date(); end.setUTCFullYear(end.getUTCFullYear() - 1);
+      const start = new Date(end); start.setUTCFullYear(start.getUTCFullYear() - 4);
+      const f = d => d.toISOString().slice(0, 10);
+      const a = await u.getJSON(`${HSG.CONFIG.METEO_ARCHIVE_URL}?latitude=${lat}&longitude=${lon}&start_date=${f(start)}&end_date=${f(end)}&daily=temperature_2m_mean,temperature_2m_max,temperature_2m_min&timezone=auto`);
+      trend = u.annualTrend(a.daily);
+    } catch { /* trend optional */ }
+    return {
+      temp: cur.current?.temperature_2m, hum: cur.current?.relative_humidity_2m,
+      code: cur.current?.weather_code, trend,
+      meteoElev: typeof cur.elevation === 'number' ? cur.elevation : null,
+    };
+  }
+
+  function close() {
+    token++;
+    HSG.store.set('location', null);
+    HSG.globe.clearPins('loc');
+    HSG.ui.closeInspector();
+  }
+
+  return { inspect, close };
+})();
+
+
+/* ===== compare.js ===== */
+/* Earth Connections — pin places, compare honestly */
+HSG.compare = (() => {
+  const u = HSG.util;
+  const COLORS = ['#22d3ee', '#fbbf24', '#f87171', '#a78bfa'];
+
+  function render() {
+    const body = u.el('panel-body');
+    const pins = HSG.store.get('pins');
+    body.innerHTML = `
+      <div class="sec">
+        <h3>Compare places</h3>
+        <p class="small muted" style="line-height:1.6;margin-bottom:12px">Click up to ${HSG.CONFIG.MAX_COMPARE_PINS} places on the globe (or use search, then ＋ Compare). Same period, same units, same sources.</p>
+        <div id="pin-list">
+          ${pins.length ? pins.map((p, i) => `
+            <div class="pin-row"><span class="pin-dot" style="background:${COLORS[i % 4]}"></span>
+              <span class="grow"><b>${u.esc(p.name)}</b><br><span class="tiny muted">${u.fmtNum(p.lat, 2)}°, ${u.fmtNum(p.lon, 2)}°</span></span>
+              <button class="btn ghost sm" data-rm="${i}">✕</button></div>`).join('')
+          : '<div class="empty"><span class="big">📍</span>Click the globe to drop your first pin.</div>'}
+        </div>
+        ${pins.length >= 2 ? '<button class="btn block" id="cmp-run">Run comparison</button>' : ''}
+        ${pins.length ? '<button class="btn ghost sm block" id="cmp-clear">Clear all</button>' : ''}
+      </div>
+      <div class="sec" id="cmp-result"></div>`;
+    body.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+      const ps = HSG.store.get('pins').filter((_, i) => i !== +b.dataset.rm);
+      HSG.store.set('pins', ps);
+      redrawPins(); render();
+    }));
+    const clr = u.el('cmp-clear');
+    if (clr) clr.addEventListener('click', () => { HSG.store.set('pins', []); redrawPins(); render(); });
+    const run = u.el('cmp-run');
+    if (run) run.addEventListener('click', runCompare);
+  }
+
+  function pickFromMap(lat, lon) {
+    const pins = HSG.store.get('pins');
+    if (pins.length >= HSG.CONFIG.MAX_COMPARE_PINS) { u.toast(`Max ${HSG.CONFIG.MAX_COMPARE_PINS} pins`, 'err'); return; }
+    const pin = { lat, lon, name: `${u.fmtNum(lat, 2)}°, ${u.fmtNum(lon, 2)}°`, temp: null, elev: null, trend: null };
+    HSG.store.set('pins', [...pins, pin]);
+    redrawPins(); render();
+    enrich(pin);
+    reverseName(pin);
+  }
+
+  async function reverseName(pin) {
+    try {
+      const d = await u.getJSON(`${HSG.CONFIG.REVERSE_URL}?latitude=${pin.lat}&longitude=${pin.lon}&localityLanguage=en`);
+      const name = d.city || d.locality || d.principalSubdivision;
+      if (name) {
+        pin.name = name + (d.countryCode ? `, ${d.countryCode}` : '');
+        HSG.store.set('pins', [...HSG.store.get('pins')]);
+        if (HSG.store.get('mode') === 'compare') render();
+      }
+    } catch { /* keep coordinates */ }
+  }
+
+  async function enrich(pin) {
+    try {
+      const [wx, el] = await Promise.allSettled([
+        u.getJSON(`${HSG.CONFIG.METEO_URL}?latitude=${pin.lat}&longitude=${pin.lon}&current=temperature_2m&timezone=auto`),
+        u.getJSON(`${HSG.CONFIG.ELEV_URL}?locations=${pin.lat},${pin.lon}`),
+      ]);
+      if (wx.status === 'fulfilled') pin.temp = wx.value.current?.temperature_2m ?? null;
+      if (el.status === 'fulfilled') pin.elev = el.value.results?.[0]?.elevation ?? null;
+      if (pin.elev == null && wx.status === 'fulfilled' && typeof wx.value.elevation === 'number') pin.elev = wx.value.elevation;
+      HSG.store.set('pins', [...HSG.store.get('pins')]);
+      if (HSG.store.get('mode') === 'compare') render();
+    } catch { /* best effort */ }
+  }
+
+  function redrawPins() {
+    HSG.globe.clearPins('cmp');
+    HSG.store.get('pins').forEach((p, i) => HSG.globe.addLocationPin(p.lat, p.lon, COLORS[i % 4], 'cmp', false));
+  }
+
+  async function runCompare() {
+    const host = u.el('cmp-result');
+    const pins = HSG.store.get('pins');
+    host.innerHTML = '<div class="spinner"></div>';
+    // 5-year annual means for each pin (same period → fair comparison)
+    await Promise.all(pins.map(async p => {
+      if (p.trend) return;
+      try {
+        const end = new Date(); end.setUTCFullYear(end.getUTCFullYear() - 1);
+        const start = new Date(end); start.setUTCFullYear(start.getUTCFullYear() - 4);
+        const f = d => d.toISOString().slice(0, 10);
+        const a = await u.getJSON(`${HSG.CONFIG.METEO_ARCHIVE_URL}?latitude=${p.lat}&longitude=${p.lon}&start_date=${f(start)}&end_date=${f(end)}&daily=temperature_2m_mean,temperature_2m_max,temperature_2m_min&timezone=auto`);
+        p.trend = u.annualTrend(a.daily);
+      } catch { p.trend = null; }
+    }));
+    const temps = pins.map(p => p.temp).filter(t => t != null);
+    const tmin = temps.length ? Math.min(...temps) - 2 : 0;
+    const tmax = temps.length ? Math.max(...temps) + 2 : 1;
+    host.innerHTML = `
+      <h3>Comparison</h3>
+      <table class="cmp-table">
+        <tr><th>Place</th><th>Now</th><th>Elev.</th><th>5-yr mean</th></tr>
+        ${pins.map((p, i) => {
+          const mean = p.trend ? p.trend.values.reduce((s, v) => s + v, 0) / p.trend.values.length : null;
+          return `<tr><td><span class="pin-dot" style="background:${COLORS[i % 4]};display:inline-block;margin-right:6px"></span>${u.esc(p.name)}</td>
+            <td>${p.temp != null ? u.fmtNum(p.temp, 1) + '°C' : '—'}</td>
+            <td>${p.elev != null ? Math.round(p.elev) + ' m' : '—'}</td>
+            <td>${mean != null ? u.fmtNum(mean, 1) + '°C' : '—'}</td></tr>`;
+        }).join('')}
+      </table>
+      <div style="margin-top:14px"><h3 style="margin-bottom:8px">Current temperature</h3>
+        ${pins.map((p, i) => `
+          <div style="margin-bottom:7px"><div class="row" style="justify-content:space-between;margin-bottom:3px">
+            <span class="tiny">${u.esc(p.name)}</span><span class="tiny" style="font-variant-numeric:tabular-nums">${p.temp != null ? u.fmtNum(p.temp, 1) + '°' : '—'}</span></div>
+            <div style="height:7px;background:rgba(255,255,255,.06);border-radius:4px">
+              <div style="height:100%;width:${p.temp != null ? ((p.temp - tmin) / (tmax - tmin) * 100).toFixed(1) : 0}%;background:${COLORS[i % 4]};border-radius:4px"></div></div></div>`).join('')}
+      </div>
+      <p class="tiny muted" style="margin-top:10px;line-height:1.6">Same observation window for all places. Temperatures: Open-Meteo nowcast · 5-yr means: ERA5 reanalysis. Differences reflect climate, elevation and land cover — not causation by any single factor.</p>`;
+  }
+
+  return { render, pickFromMap, redrawPins };
+})();
+
+
+/* ===== ask.js ===== */
+/* Ask the Earth — answers grounded in loaded data.
+   Two engines:
+   1. A built-in local analyst (no API key needed) that answers directly from
+      data the app already has or can fetch openly: NASA EONET events, the
+      dataset catalog, the selected location, and live Open-Meteo temperatures
+      for Maharashtra cities.
+   2. Gemini (bring-your-own free key) for free-form questions, with a system
+      prompt that restricts it to the same loaded data.
+   The key prompt is shown ONCE, not repeated after every message. */
+HSG.ask = (() => {
+  const u = HSG.util;
+  const history = [];
+  let keyPromptShown = false;
+  let mhCache = null, mhCacheAt = 0;
+
+  function render() {
+    const body = u.el('panel-body');
+    body.innerHTML = `
+      <div class="sec">
+        <h3>Ask the Earth</h3>
+        <p class="small muted" style="line-height:1.6;margin-bottom:10px">An analyst that answers <b>only</b> from real data — satellite layers, NASA's event tracker, live weather data via Open-Meteo, and your selected location. It says "I don't know" instead of guessing. Many questions work with <b>no API key</b>; add a free Gemini key for free-form questions.</p>
+        ${HSG.store.get('geminiKey') ? '' : '<button class="btn sm block" id="ask-key" style="margin-bottom:12px">＋ Add free Gemini API key (optional)</button>'}
+        <div class="qchips">${HSG.SUGGESTIONS.map(q => `<button class="fchip" data-q="${u.esc(q)}">${u.esc(q)}</button>`).join('')}</div>
+        <div id="chat-log">${history.map(m => bubble(m)).join('') || `<div class="msg ai">Hi — I'm grounded in live Earth data. Ask about current events, what a data layer shows, which Maharashtra cities are hottest right now, or click the globe first and ask about that place.</div>`}</div>
+        <form id="chat-form"><input id="chat-input" placeholder="Ask about the planet…" autocomplete="off" aria-label="Ask a question"><button class="btn sm" type="submit">Ask</button></form>
+      </div>`;
+    body.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => ask(b.dataset.q)));
+    u.el('chat-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const v = u.el('chat-input').value.trim();
+      if (v) { u.el('chat-input').value = ''; ask(v); }
+    });
+    const kb = u.el('ask-key');
+    if (kb) kb.addEventListener('click', () => { try { u.el('key-dialog').showModal(); } catch { /* already open */ } });
+    const log = u.el('chat-log');
+    if (log) log.scrollTop = log.scrollHeight;
+  }
+
+  function bubble(m) {
+    return `<div class="msg ${m.role}">${m.html}${m.role === 'ai' && m.src ? `<div class="src">Sources: ${m.src}</div>` : ''}</div>`;
+  }
+
+  function push(role, html, src) {
+    history.push({ role, html, src });
+    const log = u.el('chat-log');
+    if (log) { log.insertAdjacentHTML('beforeend', bubble({ role, html, src })); log.scrollTop = log.scrollHeight; }
+  }
+
+  function pushTyping() {
+    push('ai', '<span class="typing"><i></i><i></i><i></i></span>');
+    return () => {
+      history.pop();
+      const l = u.el('chat-log');
+      if (l && l.lastElementChild) l.lastElementChild.remove();
+    };
+  }
+
+  /* ---------------- local (no-key) analyst ---------------- */
+
+  const CAT_WORDS = [
+    ['wildfires', /\b(wild\s?fires?|fires?|burning)\b/],
+    ['volcanoes', /\b(volcano|volcanic|erupt)/],
+    ['floods', /\b(floods?|flooding)\b/],
+    ['severeStorms', /\b(storms?|cyclones?|hurricanes?|typhoons?)\b/],
+    ['earthquakes', /\b(earthquakes?|quakes?|seismic)\b/],
+    ['drought', /\b(droughts?)\b/],
+    ['landslides', /\b(landslides?|mudslides?)\b/],
+    ['snow', /\b(snow|blizzards?)\b/],
+    ['seaLakeIce', /\b(sea ice|lake ice|iceberg)\b/],
+    ['dustHaze', /\b(dust|haze|smoke)\b/],
+    ['tempExtremes', /\b(heat\s?waves?|cold snaps?|temperature extremes?)\b/],
+  ];
+
+  function eventList(events, emptyMsg) {
+    if (!events.length) return emptyMsg;
+    return events.slice(0, 6).map(e =>
+      `• <b>${u.esc(e.title)}</b> — observed ${u.fmtDate(e.date)} (${u.relTime(e.date)})`).join('<br>');
+  }
+
+  async function maharashtraTemps() {
+    if (mhCache && Date.now() - mhCacheAt < 10 * 60 * 1000) return mhCache;
+    const lats = HSG.MH_CITIES.map(c => c.lat).join(',');
+    const lons = HSG.MH_CITIES.map(c => c.lon).join(',');
+    const data = await u.getJSON(`${HSG.CONFIG.METEO_URL}?latitude=${lats}&longitude=${lons}&current=temperature_2m&timezone=auto`);
+    const rows = (Array.isArray(data) ? data : [data]).map((d, i) => ({
+      name: HSG.MH_CITIES[i].name, temp: d.current?.temperature_2m,
+    })).filter(r => r.temp != null).sort((a, b) => b.temp - a.temp);
+    mhCache = rows; mhCacheAt = Date.now();
+    return rows;
+  }
+
+  /* Returns an HTML answer, or null when the local analyst can't answer. */
+  async function localAnswer(q) {
+    const s = ' ' + q.toLowerCase().replace(/\s+/g, ' ') + ' ';
+
+    // greeting
+    if (/^\s*(hi+|hello|hey|namaste|hola)\b/.test(q.toLowerCase()) && q.trim().length <= 14) {
+      return `Hi! I can answer from real data right now — try "Which cities in Maharashtra are hottest?", "What wildfires are burning right now?", or tap a suggestion above. For free-form questions, add a free Gemini key below.`;
+    }
+
+    // Maharashtra temperature ranking (live Open-Meteo, no key needed)
+    if (s.includes('maharashtra') && /(tem|hot|heat|warm|weather)/.test(s)) {
+      const rows = await maharashtraTemps();
+      if (!rows.length) return null;
+      const top = rows.slice(0, 8).map((r, i) => `${i + 1}. <b>${u.esc(r.name)}</b> — ${u.fmtNum(r.temp, 1)}°C`).join('<br>');
+      return { src: 'Open-Meteo live', html: `Hottest in Maharashtra <b>right now</b> (live data, updated hourly):<br>${top}<br><span class="tiny muted">Coolest of the ${rows.length} cities checked: ${u.esc(rows[rows.length - 1].name)} at ${u.fmtNum(rows[rows.length - 1].temp, 1)}°C.</span>` };
+    }
+
+    // plantation / greening priority — readable from two layers in this app:
+    // hottest on Land Surface Temperature AND barest on Vegetation (NDVI).
+    if (/(plantation|plant(ing)? trees|afforest|green cover|greenery|more trees|tree cover)/.test(s)) {
+      const method = `Plant where the land is <b>hot and bare</b>: open <b>Layers → Land Surface Temperature</b> for the hottest ground, then <b>Layers → Vegetation (NDVI)</b> — the areas that stay hot on the first and pale/bare on the second are the plantation priorities. Greening those gives the biggest cooling per tree.`;
+      if (s.includes('nashik')) {
+        return { src: 'HeatScan Nashik · Landsat 9 (May 2026) + NASA GIBS', html: `For <b>Nashik</b> this is already measured — your HeatScan analysis of Landsat 9 imagery (May 2026) found the hottest, least-green zones at:<br>• <b>Gangapur industrial belt (SW)</b> — 59.2°C peak, the city\u2019s hottest ground<br>• <b>Nashik Road East</b> — 56.0°C peak<br>• <b>Meri–Mhasrul belt</b> — 55.4°C peak<br>Those three are the plantation priorities for Nashik.<br><span class="tiny muted">${method}</span>` };
+      }
+      return { src: 'NASA GIBS (in-app layers)', html: method + `<br>Tap any place on the globe first and I can tell you its current conditions too.` };
+    }
+
+    // explain a layer
+    if (/(explain|what is|what do|tell me about|how does)/.test(s)) {
+      const layer = HSG.LAYERS.find(l =>
+        s.includes(l.id) ||
+        (l.id === 'ndvi' && /(ndvi|vegetation|green)/.test(s)) ||
+        (l.id === 'lst' && /(land surface temp|surface temperature|heat layer|lst)/.test(s)) ||
+        (l.id === 'night' && /(night light)/.test(s)) ||
+        (l.id === 'aerosol' && /(aerosol|air quality|pollution)/.test(s)) ||
+        (l.id === 'truecolor' && /(true colou?r|satellite image)/.test(s)));
+      if (layer) {
+        return `<b>${u.esc(layer.name)}</b> — ${u.esc(layer.desc)}<br><span class="tiny muted">${u.esc(layer.satellite.platform)} · ${u.esc(layer.satellite.sensor)} · ${u.esc(layer.satellite.resolution)} · ${u.esc(layer.satellite.revisit)}. Open Layers to see it on the globe.</span>`;
+      }
+    }
+
+    // events by category
+    const events = HSG.store.get('events');
+    if (!HSG.store.get('eventsLoaded')) {
+      if (/(event|fire|volcano|flood|storm|earthquake)/.test(s)) {
+        return 'The NASA event feed is still loading — give it a few seconds and ask again.';
+      }
+    } else {
+      for (const [catId, re] of CAT_WORDS) {
+        if (re.test(s)) {
+          const inCat = events.filter(e => e.categories[0].id === catId);
+          const meta = HSG.CATEGORIES[catId];
+          if (!inCat.length) return `No open ${meta ? meta.label.toLowerCase() : catId} events are being tracked by NASA EONET right now.`;
+          return `${inCat.length} open ${meta ? meta.label.toLowerCase() : catId} event${inCat.length > 1 ? 's' : ''} tracked by NASA EONET. Most recent:<br>` +
+            eventList(inCat, '');
+        }
+      }
+      if (/(significant|important|biggest|major|top events|happening|going on)/.test(s) || /(events? (this week|today|now)|current events|right now on)/.test(s)) {
+        const week = events.filter(e => (u.daysAgo(e.date) ?? 99) <= 7);
+        const list = (week.length ? week : events);
+        return `The most recent tracked events${week.length ? ' from the last 7 days' : ''} (NASA EONET, newest first):<br>` +
+          eventList(list, 'No open events are being tracked right now.');
+      }
+    }
+
+    // "where is it hot" without a named region
+    if (/(where.*(hot|warm)|hottest|hot right now|unusually hot)/.test(s)) {
+      const loc = HSG.store.get('location');
+      const locBit = loc && loc.weather && loc.weather.temp != null
+        ? `<br>Your selected place, ${u.esc(loc.name)}, is currently ${u.fmtNum(loc.weather.temp, 0)}°C.` : '';
+      return `For a measured answer, open <b>Layers → Land Surface Temperature</b> — it shows the satellite-measured skin temperature of the land (red = hottest), observed daily by MODIS. For city rankings I can do Maharashtra right now: ask "Which cities in Maharashtra are hottest?"${locBit}`;
+    }
+
+    // selected location
+    if (/\b(this place|this location|here|selected)\b/.test(s)) {
+      const loc = HSG.store.get('location');
+      if (!loc) return 'No location is selected yet — click anywhere on the globe first, then ask about that place.';
+      const w = loc.weather || {};
+      return `<b>${u.esc(loc.name)}</b> at ${loc.lat.toFixed(2)}°, ${loc.lon.toFixed(2)}°` +
+        `${loc.elevation != null ? ` · elevation ${Math.round(loc.elevation)} m` : ''}` +
+        `${w.temp != null ? ` · currently ${u.fmtNum(w.temp, 0)}°C${w.hum != null ? `, humidity ${w.hum}%` : ''}` : ''}.` +
+        `${w.trend ? `<br>Its 5-year annual mean temperatures are in the fingerprint panel (ERA5 via Open-Meteo).` : ''}`;
+    }
+
+    return null;
+  }
+
+  /* ---------------- Gemini (BYO key) ---------------- */
+
+  function contextBlock() {
+    const events = HSG.store.get('events').slice(0, 40).map(e =>
+      `- ${e.title} [${e.categories.map(c => c.title).join(', ')}] observed ${e.date?.slice(0, 10)}, at ${e.lat?.toFixed(1)},${e.lon?.toFixed(1)}${e.sources?.[0] ? ` (${e.sources[0].url})` : ''}`).join('\n');
+    const layers = HSG.LAYERS.map(l =>
+      `- ${l.name}: ${l.desc} Satellite: ${l.satellite.platform}/${l.satellite.sensor}, ${l.satellite.resolution} resolution, ${l.satellite.revisit}.`).join('\n');
+    const loc = HSG.store.get('location');
+    const locStr = loc ? `Selected location: ${loc.name} at ${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}${loc.elevation != null ? `, elevation ${Math.round(loc.elevation)} m` : ''}${loc.weather ? `, current temp ${loc.weather.temp ?? '?'}°C` : ''}.` : 'No location selected.';
+    return `AVAILABLE DATA LAYERS:\n${layers}\n\nOPEN NATURAL EVENTS (NASA EONET, newest first):\n${events || '(event feed unavailable)'}\n\n${locStr}\nActive data layer on globe: ${HSG.store.get('layer') || 'none'}.`;
+  }
+
+  const SYSTEM = `You are the analyst inside HeatScan Globe, a 3D Earth exploration app. Rules you must never break:
+1. Answer ONLY from the AVAILABLE DATA provided below. If the question needs data not listed, say plainly "I don't have that data in the app right now" and suggest what IS available.
+2. Never invent numbers, dates, place statistics, event counts, or citations. If a number isn't in the data, don't give one.
+3. When you mention an event or layer, name its source (e.g. "NASA EONET", "MODIS via NASA GIBS").
+4. Distinguish observation time from "now" — satellite data is hours to days old, never live.
+5. Keep answers under 120 words unless the user asks for detail. Use plain language.`;
+
+  let workingModel = null; // first model that answers successfully this session
+
+  async function geminiCall(model, q, key) {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: SYSTEM }] },
+        contents: [
+          { role: 'user', parts: [{ text: contextBlock() + '\n\nUser question: ' + q }] },
+        ],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 500 },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      const err = new Error(data.error?.message || 'HTTP ' + res.status);
+      err.status = res.status;
+      throw err;
+    }
+    return data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || "I couldn't form an answer from the available data.";
+  }
+
+  async function geminiAnswer(q, key) {
+    let model = workingModel || HSG.CONFIG.GEMINI_MODEL;
+    let text;
+    try {
+      text = await geminiCall(model, q, key);
+    } catch (e) {
+      // Google retires model names over time; its error message names the
+      // current replacement ("use models/gemini-X"). Follow it automatically
+      // instead of dumping the raw error on the user.
+      const suggested = /models\/([a-z0-9.\-]+)/i.exec(e.message || '')?.[1];
+      const modelGone = /no longer available|not found|deprecated|unsupported model/i.test(e.message || '') || e.status === 404;
+      if (suggested && suggested !== model) {
+        text = await geminiCall(suggested, q, key);
+        model = suggested;
+      } else if (modelGone && model !== 'gemini-2.5-flash') {
+        text = await geminiCall('gemini-2.5-flash', q, key);
+        model = 'gemini-2.5-flash';
+      } else {
+        throw e;
+      }
+    }
+    workingModel = model;
+    return u.esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, '<br>');
+  }
+
+  /* ---------------- ask orchestration ---------------- */
+
+  async function ask(q) {
+    push('user', u.esc(q));
+
+    // 1) local analyst first — real fetched data beats a key demand
+    let drop = null;
+    try {
+      if (/maharashtra/.test(q.toLowerCase())) drop = pushTyping();
+      const local = await localAnswer(q);
+      if (drop) { drop(); drop = null; }
+      if (local) {
+        const html = typeof local === 'string' ? local : local.html;
+        const src = (typeof local === 'object' && local.src) || 'NASA EONET · NASA GIBS (in-app data)';
+        push('ai', html, src);
+        return;
+      }
+    } catch (e) {
+      if (drop) drop();
+      console.warn('[ask] local answer failed', e);
+    }
+
+    // 2) Gemini for free-form questions
+    const key = HSG.store.get('geminiKey');
+    if (!key) {
+      if (!keyPromptShown) {
+        keyPromptShown = true;
+        push('ai', 'That one needs free-form reasoning, which runs on a <b>free Gemini API key</b> — tap <b>＋ Add free Gemini API key</b> at the top of this panel (it stays in your browser, sent only to Google). Questions about events, data layers, Maharashtra temperatures and your selected place work here with no key at all.');
+        try { u.el('key-dialog').showModal(); } catch { /* dialog busy */ }
+      } else {
+        push('ai', 'Still needs a Gemini key for that kind of question — the <b>＋ Add free Gemini API key</b> button at the top of this panel opens the dialog. Or ask me about events, layers, or Maharashtra temperatures, which I can answer directly.');
+      }
+      return;
+    }
+    const dropTyping = pushTyping();
+    try {
+      const text = await geminiAnswer(q, key);
+      dropTyping();
+      push('ai', text, 'NASA EONET · NASA GIBS');
+    } catch (e) {
+      dropTyping();
+      console.warn('[ask] gemini failed', e);
+      const keyBad = /api key|api_key|invalid|unauthenticated|permission/i.test(e.message || '') || e.status === 400 || e.status === 401 || e.status === 403;
+      push('ai', keyBad
+        ? 'Google rejected that API key — tap <b>＋ Add free Gemini API key</b> at the top of this panel and re-check it. Questions about events, layers, Maharashtra temperatures and plantation needs work here with no key at all.'
+        : 'The model could not be reached just now — give it a few seconds and ask again. Questions about events, layers and Maharashtra temperatures work here with no key at all.');
+    }
+  }
+
+  return { render, ask };
+})();
+
+
+/* ===== ui.js ===== */
+/* UI shell — modes, panels, inspector, popovers, dialogs */
+HSG.ui = (() => {
+  const u = HSG.util;
+  const TITLES = {
+    explore: 'Explore', layers: 'Data Layers', time: 'Time Machine',
+    pulse: 'Earth Pulse', moments: 'Earth Moments', ask: 'Ask the Earth', compare: 'Compare Places',
+  };
+  const RENDER = {
+    explore: renderExplore, layers: () => HSG.layersUI.render(), time: () => HSG.timeMachine.render(),
+    pulse: () => HSG.pulse.render(), moments: () => HSG.moments.render(),
+    ask: () => HSG.ask.render(), compare: () => HSG.compare.render(),
+  };
+
+  function init() {
+    document.querySelectorAll('.rail-btn').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+    u.el('panel-close').addEventListener('click', () => u.el('panel').classList.add('hidden-panel'));
+    u.el('inspector-close').addEventListener('click', () => HSG.fingerprint.close());
+    u.el('btn-base').addEventListener('click', e => { e.stopPropagation(); u.el('base-pop').hidden = !u.el('base-pop').hidden; });
+    document.addEventListener('click', e => {
+      if (!u.el('base-pop').hidden && !e.target.closest('#base-pop') && !e.target.closest('#btn-base'))
+        u.el('base-pop').hidden = true;
+    });
+    document.querySelectorAll('.base-opt').forEach(b => b.addEventListener('click', () => {
+      try {
+        HSG.globe.setBase(b.dataset.base);
+        u.el('base-pop').hidden = true;
+        u.toast(`Base map: ${HSG.BASEMAPS[b.dataset.base].name}`);
+      } catch (e) {
+        console.error('[ui] setBase failed', e);
+        u.toast('Base map failed: ' + (e && e.message ? e.message : e), 'err');
+      }
+    }));
+    u.el('btn-help').addEventListener('click', () => { fillHelp(); u.el('help-dialog').showModal(); });
+    u.el('key-save').addEventListener('click', e => {
+      const v = u.el('key-input').value.trim();
+      if (!v) { e.preventDefault(); u.toast('Paste a key first — or use Cancel', 'err'); return; }
+      if (v) {
+        localStorage.setItem(HSG.CONFIG.KEY_STORE, v);
+        HSG.store.set('geminiKey', v);
+        u.toast('API key saved in this browser');
+        if (HSG.store.get('mode') === 'ask') RENDER.ask();
+      }
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') HSG.fingerprint.close(); });
+    HSG.timeMachine.initSplitter();
+  }
+
+  function setMode(mode) {
+    if (HSG.store.get('mode') === 'time' && mode !== 'time') HSG.timeMachine.stop();
+    HSG.store.set('mode', mode);
+    document.querySelectorAll('.rail-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    u.el('panel-title').textContent = TITLES[mode];
+    u.el('panel').classList.remove('hidden-panel');
+    RENDER[mode]();
+    if (mode === 'compare') HSG.compare.redrawPins();
+    else HSG.globe.clearPins('cmp');
+    HSG.globe.requestRender();
+  }
+
+  function renderExplore() {
+    const loc = HSG.store.get('location');
+    u.el('panel-body').innerHTML = `
+      <div class="sec"><h3>Explore Earth</h3>
+        <p class="small muted" style="line-height:1.7">Drag to spin the planet. Scroll to dive from orbit to street level. <b>Click anywhere</b> for its location fingerprint — elevation, weather, climate trend, nearby events.</p></div>
+      <div class="sec"><h3>Right now on the planet</h3><div id="exp-pulse"><div class="spinner"></div></div></div>
+      <div class="sec"><h3>Try</h3>
+        <div class="qchips">
+          <button class="fchip" data-go="pulse">🔥 Live events</button>
+          <button class="fchip" data-go="time">🕰 Time travel</button>
+          <button class="fchip" data-go="layers">🌡 Heat layer</button>
+          <button class="fchip" data-go="moments">✨ Discoveries</button>
+        </div></div>`;
+    u.el('panel-body').querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.go)));
+    const paint = () => {
+      const host = u.el('exp-pulse');
+      if (!host || !HSG.store.get('eventsLoaded')) return;
+      const top = HSG.store.get('events').slice(0, 4);
+      host.innerHTML = top.map(e => HSG.pulse.evtCard(e)).join('');
+      host.querySelectorAll('.evt').forEach(el => {
+        el.addEventListener('click', () => HSG.pulse.openEvent(el.dataset.id));
+        el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); HSG.pulse.openEvent(el.dataset.id); } });
+      });
+    };
+    if (HSG.store.get('eventsLoaded')) paint();
+    else { const iv = setInterval(() => { if (HSG.store.get('eventsLoaded')) { paint(); clearInterval(iv); } }, 800); }
+  }
+
+  function openInspector(title, html) {
+    u.el('inspector-title').textContent = title;
+    u.el('inspector-body').innerHTML = html;
+    u.el('inspector').hidden = false;
+    // wire dynamic buttons
+    const cmp = u.el('fp-compare'), askB = u.el('fp-ask');
+    if (cmp) cmp.addEventListener('click', () => {
+      const loc = HSG.store.get('location');
+      if (loc) {
+        const pins = HSG.store.get('pins');
+        if (pins.length < HSG.CONFIG.MAX_COMPARE_PINS && !pins.some(p => Math.abs(p.lat - loc.lat) < 0.01 && Math.abs(p.lon - loc.lon) < 0.01)) {
+          HSG.store.set('pins', [...pins, { lat: loc.lat, lon: loc.lon, name: loc.name, temp: loc.weather?.temp ?? null, elev: loc.elevation ?? null, trend: loc.weather?.trend || null }]);
+          u.toast('Added to comparison');
+        }
+        setMode('compare');
+      }
+    });
+    if (askB) askB.addEventListener('click', () => setMode('ask'));
+    u.el('inspector-body').querySelectorAll('[data-eid]').forEach(el => {
+      el.addEventListener('click', () => HSG.pulse.openEvent(el.dataset.eid));
+    });
+  }
+
+  function closeInspector() { u.el('inspector').hidden = true; }
+
+  function fillHelp() {
+    u.el('help-sources').innerHTML = `
+      <li><b>Imagery</b> — Esri World Imagery; NASA GIBS (Terra/MODIS, Suomi NPP/VIIRS)</li>
+      <li><b>Environment layers</b> — NASA MODIS & VIIRS via GIBS <a href="https://earthdata.nasa.gov" target="_blank" rel="noopener">earthdata.nasa.gov</a></li>
+      <li><b>Events</b> — NASA EONET <a href="https://eonet.gsfc.nasa.gov" target="_blank" rel="noopener">eonet.gsfc.nasa.gov</a></li>
+      <li><b>Places</b> — OpenStreetMap Nominatim; BigDataCloud reverse geocoding</li>
+      <li><b>Elevation</b> — OpenTopoData (SRTM 90m)</li>
+      <li><b>Weather & climate</b> — Open-Meteo (nowcast + ERA5 reanalysis)</li>
+      <li><b>AI answers</b> — your own Gemini key, grounded on loaded data only</li>`;
+  }
+
+  return { init, setMode, openInspector, closeInspector, renderExplore };
+})();
+
+
+/* ===== main.js ===== */
+/* Boot sequence */
+(async function boot() {
+  const u = HSG.util;
+  const msg = u.el('boot').querySelector('.boot-msg');
+  try {
+    msg.textContent = 'Lighting up the globe…';
+    await HSG.globe.init();
+    msg.textContent = 'Waking the interface…';
+    HSG.ui.init();
+    HSG.search.init();
+    HSG.ui.setMode('explore');
+    // events load in background — never block the globe
+    HSG.pulse.load();
+    msg.textContent = 'Ready.';
+    setTimeout(() => u.el('boot').classList.add('done'), 350);
+  } catch (e) {
+    console.error(e);
+    msg.innerHTML = 'Couldn\'t start the 3D engine.<br><span class="tiny">WebGL may be unavailable on this device.</span>';
+    u.toast('3D engine failed to start', 'err');
+  }
+})();
+
+</script>
+</body>
+</html>
