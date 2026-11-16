@@ -19,7 +19,7 @@ HSG.ask = (() => {
       <div class="sec">
         <h3>Ask the Earth</h3>
         <p class="small muted" style="line-height:1.6;margin-bottom:10px">An analyst that answers <b>only</b> from real data — satellite layers, NASA's event tracker, live weather data via Open-Meteo, and your selected location. It says "I don't know" instead of guessing. Many questions work with <b>no API key</b>; add a free Gemini key for free-form questions.</p>
-        ${HSG.store.get('geminiKey') ? '' : '<button class="btn sm block" id="ask-key" style="margin-bottom:12px">＋ Add free Gemini API key (optional)</button>'}
+        ${HSG.store.get('geminiKey') ? '<button class="btn ghost sm block" id="ask-key" style="margin-bottom:12px">🔑 Change Gemini API key</button>' : '<button class="btn sm block" id="ask-key" style="margin-bottom:12px">＋ Add free Gemini API key (optional)</button>'}
         <div class="qchips">${HSG.SUGGESTIONS.map(q => `<button class="fchip" data-q="${u.esc(q)}">${u.esc(q)}</button>`).join('')}</div>
         <div id="chat-log">${history.map(m => bubble(m)).join('') || `<div class="msg ai">Hi — I'm grounded in live Earth data. Ask about current events, what a data layer shows, which Maharashtra cities are hottest right now, or click the globe first and ask about that place.</div>`}</div>
         <form id="chat-form"><input id="chat-input" placeholder="Ask about the planet…" autocomplete="off" aria-label="Ask a question"><button class="btn sm" type="submit">Ask</button></form>
@@ -218,28 +218,28 @@ HSG.ask = (() => {
   }
 
   async function geminiAnswer(q, key) {
-    let model = workingModel || HSG.CONFIG.GEMINI_MODEL;
-    let text;
-    try {
-      text = await geminiCall(model, q, key);
-    } catch (e) {
-      // Google retires model names over time; its error message names the
-      // current replacement ("use models/gemini-X"). Follow it automatically
-      // instead of dumping the raw error on the user.
-      const suggested = /models\/([a-z0-9.\-]+)/i.exec(e.message || '')?.[1];
-      const modelGone = /no longer available|not found|deprecated|unsupported model/i.test(e.message || '') || e.status === 404;
-      if (suggested && suggested !== model) {
-        text = await geminiCall(suggested, q, key);
-        model = suggested;
-      } else if (modelGone && model !== 'gemini-2.5-flash') {
-        text = await geminiCall('gemini-2.5-flash', q, key);
-        model = 'gemini-2.5-flash';
-      } else {
-        throw e;
+    // Try the configured model, then fall back across known-good Flash
+    // models, with one pause-and-retry for transient network/5xx/429
+    // failures (campus networks and free-tier rate limits both produce
+    // these). A rejected KEY (400/401/403) is fatal — no model retry can
+    // fix it, so surface it immediately for the key-specific message.
+    const chain = [...new Set([workingModel, HSG.CONFIG.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-3.8-flash', 'gemini-2.0-flash'].filter(Boolean))];
+    let lastErr = null;
+    for (const model of chain) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const text = await geminiCall(model, q, key);
+          workingModel = model;
+          return u.esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, '<br>');
+        } catch (e) {
+          lastErr = e;
+          const keyBad = /api key|api_key|invalid|unauthenticated|permission/i.test(e.message || '') || e.status === 400 || e.status === 401 || e.status === 403;
+          if (keyBad) throw e;
+          if (attempt === 0) await new Promise(r => setTimeout(r, 1500));
+        }
       }
     }
-    workingModel = model;
-    return u.esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, '<br>');
+    throw lastErr;
   }
 
   /* ---------------- ask orchestration ---------------- */

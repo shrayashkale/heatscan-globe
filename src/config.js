@@ -3,7 +3,7 @@
 window.HSG = window.HSG || {};
 HSG.CONFIG = {
   CESIUM_VERSION: '1.146',
-  GEMINI_MODEL: 'gemini-3.8-flash',
+  GEMINI_MODEL: 'gemini-2.5-flash',
   KEY_STORE: 'hsg_gemini_key',
   // "latest available" offset for daily GIBS layers (processing latency)
   LATEST_OFFSET_DAYS: 3,
